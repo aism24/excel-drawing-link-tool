@@ -73,11 +73,9 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--ink);
-  background:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
-    var(--bg);
-  background-size: 28px 28px, 28px 28px, 100% 100%;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NDgiIGhlaWdodD0iMTEyIiB2aWV3Qm94PSIwIDAgNDQ4IDExMiI+CiAgPHJlY3Qgd2lkdGg9IjQ0OCIgaGVpZ2h0PSIxMTIiIGZpbGw9IiM4YThhOGEiLz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iMTA4IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNGEyYTI0Ii8+CiAgPHJlY3QgeD0iMTE0IiB5PSIyIiB3aWR0aD0iMTA4IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNmIzYjMwIi8+CiAgPHJlY3QgeD0iMjI2IiB5PSIyIiB3aWR0aD0iMTA4IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNTYzMDI5Ii8+CiAgPHJlY3QgeD0iMzM4IiB5PSIyIiB3aWR0aD0iMTA4IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNWMzMzJiIi8+CiAgPHJlY3QgeD0iMCIgeT0iNTgiIHdpZHRoPSI1NCIgaGVpZ2h0PSI1MiIgZmlsbD0iIzQwMjQyMCIvPgogIDxyZWN0IHg9IjU4IiB5PSI1OCIgd2lkdGg9IjEwOCIgaGVpZ2h0PSI1MiIgZmlsbD0iIzRhMmEyNCIvPgogIDxyZWN0IHg9IjE3MCIgeT0iNTgiIHdpZHRoPSIxMDgiIGhlaWdodD0iNTIiIGZpbGw9IiM2YjNiMzAiLz4KICA8cmVjdCB4PSIyODIiIHk9IjU4IiB3aWR0aD0iMTA4IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNTYzMDI5Ii8+CiAgPHJlY3QgeD0iMzk0IiB5PSI1OCIgd2lkdGg9IjU0IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNDAyNDIwIi8+Cjwvc3ZnPg==");
+  background-repeat: repeat;
+  background-size: 448px 112px;
   padding: 32px 20px 80px;
 }
 .wrap { max-width: 1040px; margin: 0 auto; }
@@ -120,11 +118,13 @@ header.masthead {
 .masthead-actions .file-status { text-align: center; }
 .btn-num {
   width: 100%;
-  min-height: 54px;
+  min-height: 108px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+  font-size: 20px;
+  line-height: 1.3;
 }
 .btn-pink { background: #ec4899; color: #ffffff; }
 .btn-yellow { background: #fde68a; color: #1a1a1a; }
@@ -204,6 +204,7 @@ h1 {
 .btn-primary { background: var(--accent-strong); color: var(--paper); }
 .btn-secondary { background: var(--accent); color: var(--paper); }
 .btn-success { background: var(--warn-fg); color: var(--paper); }
+.btn.btn-num { font-size: 20px; line-height: 1.3; }
 
 .file-status { font-size: 12px; color: var(--ink-faint); margin-top: 8px; word-break: break-all; font-family: var(--font-mono); }
 
@@ -292,15 +293,15 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
    <div class="masthead-actions">
     <div class="action-col">
       <button id="btnImportSource" class="btn btn-num btn-pink">① マスタExcelをインポート</button>
-      <div class="file-status" id="sourceFileStatus">未読み込み</div>
+      <div class="file-status" id="sourceFileStatus"></div>
     </div>
     <div class="action-col">
       <button id="btnImportLinked" class="btn btn-num btn-yellow" disabled>② リンク済みExcelをインポート（任意）</button>
-      <div class="file-status" id="linkedFileStatus">未読み込み</div>
+      <div class="file-status" id="linkedFileStatus"></div>
     </div>
     <div class="action-col">
       <button id="btnSelectFolder" class="btn btn-num btn-orange" disabled>③ 図面フォルダを選択</button>
-      <div class="file-status" id="folderStatus">未選択</div>
+      <div class="file-status" id="folderStatus"></div>
     </div>
     <div class="action-col">
       <button id="btnExport" class="btn btn-num btn-green" disabled>④ ハイパーリンク付きExcelを保存</button>
