@@ -847,6 +847,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     state.rows.forEach(function (row) {
       if (row.status !== '正常' || !row.hyperlinkUrl) return;
       var cell = ws.getCell(row.rowNumber, COL_DRAWING);
+      cell.style = JSON.parse(JSON.stringify(cell.style || {}));
       var existingFont = cell.font || {};
       cell.value = { text: row.drawingNo, hyperlink: row.hyperlinkUrl };
       cell.font = Object.assign({}, existingFont, {
