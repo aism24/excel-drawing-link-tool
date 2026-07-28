@@ -139,33 +139,7 @@ h1 {
   margin-bottom: 8px;
   color: var(--ink);
 }
-#basePathInput {
-  width: 100%;
-  padding: 11px 12px;
-  font-size: 14px;
-  font-family: var(--font-mono);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--paper-sunken);
-  color: var(--ink);
-}
-#basePathInput:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .hint { font-size: 12px; color: var(--ink-faint); margin-top: 8px; }
-
-.base-path-summary {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 22px;
-}
-.base-path-summary-text {
-  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-soft);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.link-btn {
-  background: none; border: none; padding: 0; margin: 0;
-  font-family: var(--font-ui); font-size: 12.5px; font-weight: 600;
-  color: var(--accent); cursor: pointer; flex-shrink: 0;
-}
-.link-btn:hover { text-decoration: underline; }
 
 .row-flex { display: flex; gap: 16px; flex-wrap: wrap; }
 .row-flex .col { flex: 1; min-width: 220px; display: flex; flex-direction: column; }
@@ -274,16 +248,7 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
     <h1>マスタから実寸法師を開く</h1>
   </header>
 
-  <div class="card base-path-summary" id="basePathSummaryCard" style="display:none;">
-    <span class="base-path-summary-text" id="basePathSummaryText"></span>
-    <button type="button" id="btnEditBasePath" class="link-btn">変更</button>
-  </div>
-
-  <div class="card" id="basePathCard">
-    <label class="field-label" for="basePathInput">図面フォルダの絶対パス（ベースパス）</label>
-    <input type="text" id="basePathInput" placeholder="例: C:\Users\sumi\Desktop\図面フォルダ">
-    <div class="hint">フォルダ選択の直前に、このパスと選ぶフォルダの中身が一致するように入力・変更してください。</div>
-  </div>
+  <input type="hidden" id="basePathInput">
 
   <div class="card row-flex">
     <div class="col">
@@ -413,10 +378,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   var el = {
     basePathInput: document.getElementById('basePathInput'),
-    basePathCard: document.getElementById('basePathCard'),
-    basePathSummaryCard: document.getElementById('basePathSummaryCard'),
-    basePathSummaryText: document.getElementById('basePathSummaryText'),
-    btnEditBasePath: document.getElementById('btnEditBasePath'),
     btnImportSource: document.getElementById('btnImportSource'),
     btnImportLinked: document.getElementById('btnImportLinked'),
     btnSelectFolder: document.getElementById('btnSelectFolder'),
@@ -494,8 +455,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return base + '_' + stamp + '.xlsx';
   }
 
-  // ---------- ベースパスの自動記憶（このPC・このブラウザ内でのみ有効） ----------
-  // 普段は「変更」リンクの1行に畳んでおき、未設定の初回だけ入力欄を開いた状態にする。
+  // ---------- ベースパスの自動記憶（画面には一切表示しない・内部のみ） ----------
+  // 会社サーバーへの接続パスはPCごとに異なるため、localStorageにPC単位で
+  // 記憶する。未設定の場合のみ、フォルダ選択の直前にprompt()で一度だけ尋ねる。
 
   var BASE_PATH_STORAGE_KEY = 'excelDrawingLinkTool_basePath';
 
@@ -503,38 +465,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     try { localStorage.setItem(BASE_PATH_STORAGE_KEY, value); } catch (e) { /* 無視 */ }
   }
 
-  function collapseBasePath() {
-    var value = el.basePathInput.value.trim();
-    el.basePathSummaryText.textContent = value ? ('図面フォルダ: ' + value) : '図面フォルダの絶対パス（未設定）';
-    el.basePathCard.style.display = 'none';
-    el.basePathSummaryCard.style.display = '';
+  function loadBasePath() {
+    try { return localStorage.getItem(BASE_PATH_STORAGE_KEY) || ''; } catch (e) { return ''; }
   }
 
-  function expandBasePath() {
-    el.basePathCard.style.display = '';
-    el.basePathSummaryCard.style.display = 'none';
-    el.basePathInput.focus();
-  }
+  el.basePathInput.value = loadBasePath();
 
-  (function restoreBasePath() {
-    var saved = '';
-    try { saved = localStorage.getItem(BASE_PATH_STORAGE_KEY) || ''; } catch (e) { /* 無視 */ }
-    if (saved) {
-      el.basePathInput.value = saved;
-      collapseBasePath();
-    } else {
-      expandBasePath();
+  // フォルダ選択前にベースパスが未設定なら尋ねる。取得できなければfalseを返す。
+  function ensureBasePath() {
+    var current = el.basePathInput.value.trim();
+    if (current) return true;
+    var input = window.prompt('図面フォルダの絶対パスを入力してください（例: C:\\Users\\sumi\\Desktop\\図面フォルダ）\n※この端末では次回以降、自動的に記憶されます。');
+    if (!input || !input.trim()) {
+      showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
+      return false;
     }
-  })();
-
-  el.basePathInput.addEventListener('change', function () {
-    var value = el.basePathInput.value.trim();
-    if (!value) return;
-    saveBasePath(value);
-    collapseBasePath();
-  });
-
-  el.btnEditBasePath.addEventListener('click', expandBasePath);
+    el.basePathInput.value = input.trim();
+    saveBasePath(input.trim());
+    return true;
+  }
 
   // ---------- Step1: 元データExcelのインポート ----------
 
@@ -657,6 +606,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ---------- Step3: 図面フォルダの選択（複数回可） ----------
 
   el.btnSelectFolder.addEventListener('click', function () {
+    if (!ensureBasePath()) return;
     el.folderInput.value = '';
     el.folderInput.click();
   });
@@ -664,11 +614,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   el.folderInput.addEventListener('change', function (e) {
     var files = Array.prototype.slice.call(e.target.files);
     var basePath = el.basePathInput.value.trim();
-    if (!basePath) {
-      showToast('先にベースパスを入力してください');
-      return;
-    }
-    try { localStorage.setItem(BASE_PATH_STORAGE_KEY, basePath); } catch (err) { /* 無視 */ }
+    if (!basePath) return;
 
     var directFiles = files.filter(function (f) {
       var rel = f.webkitRelativePath || '';
