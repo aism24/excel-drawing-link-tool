@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.2';
+  var APP_VERSION = '2026-07-30.3';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -377,7 +377,8 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   .basepath-warn { animation: none; }
 }
 
-.mode-switch { display: flex; gap: 10px; justify-content: center; margin: 0 0 20px; flex-wrap: wrap; }
+.mode-switch { display: flex; justify-content: center; margin: 0 0 20px; }
+.mode-toggle-pair { position: relative; display: flex; gap: 10px; }
 .mode-btn {
   width: 180px; padding: 10px 20px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--paper); color: var(--ink-soft); text-align: center;
@@ -386,7 +387,11 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 .mode-btn:hover { filter: brightness(0.97); }
 .mode-btn.active { background: var(--accent-strong); color: var(--paper); border-color: var(--accent-strong); }
 .mode-btn.mode-btn-action {
-  width: auto; background: var(--accent); color: var(--paper); border-color: var(--accent);
+  /* .mode-toggle-pairの右端(left:100%)を基準に絶対配置することで、
+     このボタンの表示/非表示が①②ボタンの中央配置に一切影響しないようにする。 */
+  position: absolute; left: 100%; top: 0; margin-left: 10px;
+  width: auto; white-space: nowrap;
+  background: var(--accent); color: var(--paper); border-color: var(--accent);
 }
 .mode-btn.mode-btn-action:hover { filter: brightness(1.06); }
 
@@ -458,9 +463,11 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
   </header>
 
   <div class="mode-switch" id="modeSwitch">
-    <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">リンク付与ツール</button>
-    <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">図面ビューア</button>
-    <button type="button" class="mode-btn mode-btn-action" id="btnImportViewer" style="display:none;">⑤ Excelインポート</button>
+    <div class="mode-toggle-pair">
+      <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">リンク付与ツール</button>
+      <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">図面ビューア</button>
+      <button type="button" class="mode-btn mode-btn-action" id="btnImportViewer" style="display:none;">⑤ Excelインポート</button>
+    </div>
   </div>
 
   <input type="hidden" id="basePathInput">
