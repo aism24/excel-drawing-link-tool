@@ -523,20 +523,36 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // 工事ごとの下位フォルダ部分はユーザーがこの後ろに追記する想定。
   var DEFAULT_BASE_PATH = '\\\\192.168.1.2\\share\\①進行中工事';
 
-  // フォルダ選択のたびに、共通ルート〜工事名・図面種別フォルダまでのパスを
-  // 尋ねる（最後の実フォルダ名はこの後のフォルダ選択で自動的に追加されるため
-  // 含めない）。前回入力値（なければDEFAULT_BASE_PATH）を初期表示する。
-  // 取得できなければfalseを返す。
+  // Windows エクスプローラーの「パスのコピー」で得られる文字列は
+  // 前後を二重引用符で囲んでいるため、あれば取り除く。
+  function stripQuotes(s) {
+    return s.replace(/^"(.*)"$/, '$1');
+  }
+
+  // フォルダ選択のたびに、絶対パスを尋ねる（クリップボードに
+  // エクスプローラーの「パスのコピー」結果があれば自動で初期値に反映）。
+  // 選択予定フォルダ名まで含めて入力してもよい（後続処理側で重複防止する）。
+  // 取得できなければfalseを解決するPromiseを返す。
   function ensureBasePath() {
-    var current = el.basePathInput.value.trim() || DEFAULT_BASE_PATH;
-    var input = window.prompt('図面フォルダの絶対パスを入力してください（末尾のフォルダ名はこの後のフォルダ選択で自動的に追加されます）\n※この端末では次回、この内容が初期表示されます。', current);
-    if (!input || !input.trim()) {
-      showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
-      return false;
-    }
-    el.basePathInput.value = input.trim();
-    saveBasePath(input.trim());
-    return true;
+    var fallback = el.basePathInput.value.trim() || DEFAULT_BASE_PATH;
+    var clipboardPromise = (navigator.clipboard && navigator.clipboard.readText)
+      ? navigator.clipboard.readText().catch(function () { return ''; })
+      : Promise.resolve('');
+
+    return clipboardPromise.then(function (clip) {
+      var cleaned = stripQuotes((clip || '').trim());
+      var looksLikePath = /^\\\\/.test(cleaned) || /^[A-Za-z]:\\/.test(cleaned);
+      var defaultValue = looksLikePath ? cleaned : fallback;
+
+      var input = window.prompt('図面フォルダの絶対パスを入力してください\n（エクスプローラーで対象フォルダを右クリック→「パスのコピー」した直後にこのボタンを押すと自動入力されます。選択予定フォルダ名まで含めて入力して構いません）\n※この端末では次回、この内容が初期表示されます。', defaultValue);
+      if (!input || !input.trim()) {
+        showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
+        return false;
+      }
+      el.basePathInput.value = input.trim();
+      saveBasePath(input.trim());
+      return true;
+    });
   }
 
   // ---------- Step1: 元データExcelのインポート ----------
@@ -660,9 +676,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ---------- Step3: 図面フォルダの選択（複数回可） ----------
 
   el.btnSelectFolder.addEventListener('click', function () {
-    if (!ensureBasePath()) return;
-    el.folderInput.value = '';
-    el.folderInput.click();
+    ensureBasePath().then(function (ok) {
+      if (!ok) return;
+      el.folderInput.value = '';
+      el.folderInput.click();
+    });
   });
 
   el.folderInput.addEventListener('change', function (e) {
@@ -672,11 +690,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (files.length === 0) return;
 
     // 実際に選択したフォルダ自身の名前はwebkitRelativePathの先頭区画から
-    // 取得できるため、手入力させず自動的にmiddlePathの末尾へ追加する。
+    // 取得できる。入力済みパスが既にこのフォルダ名で終わっている場合
+    // （ユーザーが選択予定フォルダ名まで含めて入力済み）は二重追加を防ぐ。
     var leafFolderName = (files[0].webkitRelativePath || '').split('/')[0];
-    var basePath = leafFolderName
-      ? middlePath.replace(/[\\/]+$/, '') + '/' + leafFolderName
-      : middlePath;
+    var trimmedMiddle = middlePath.replace(/[\\/]+$/, '');
+    var normalizedMiddle = trimmedMiddle.replace(/\\/g, '/');
+    var alreadyEndsWithLeaf = leafFolderName && (
+      normalizedMiddle === leafFolderName ||
+      normalizedMiddle.slice(-(leafFolderName.length + 1)) === '/' + leafFolderName
+    );
+    var basePath = (leafFolderName && !alreadyEndsWithLeaf)
+      ? trimmedMiddle + '/' + leafFolderName
+      : trimmedMiddle;
 
     var directFiles = files.filter(function (f) {
       var rel = f.webkitRelativePath || '';
