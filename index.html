@@ -118,7 +118,7 @@ header.masthead {
 .masthead-actions .file-status { text-align: center; }
 .btn-num {
   width: 100%;
-  min-height: 108px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -204,7 +204,7 @@ h1 {
 .btn-primary { background: var(--accent-strong); color: var(--paper); }
 .btn-secondary { background: var(--accent); color: var(--paper); }
 .btn-success { background: var(--warn-fg); color: var(--paper); }
-.btn.btn-num { font-size: 20px; line-height: 1.3; }
+.btn.btn-num { font-size: 20px; line-height: 1.3; padding: 2px 14px; min-height: 32px; }
 .btn-num-mark { font-size: 1em; }
 .btn-num-label { font-size: 0.75em; }
 
@@ -343,19 +343,19 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
    </div>
    <div class="masthead-actions">
     <div class="action-col">
-      <button id="btnImportSource" class="btn btn-num btn-pink"><span class="btn-num-mark">①</span> <span class="btn-num-label">マスタExcelをインポート</span></button>
+      <button id="btnImportSource" class="btn btn-num btn-pink"><span class="btn-num-mark">①</span> <span class="btn-num-label">マスタを選択</span></button>
       <div class="file-status" id="sourceFileStatus"></div>
     </div>
     <div class="action-col">
-      <button id="btnImportLinked" class="btn btn-num btn-yellow" disabled><span class="btn-num-mark">②</span> <span class="btn-num-label">リンク済みExcelをインポート（任意）</span></button>
+      <button id="btnImportLinked" class="btn btn-num btn-yellow" disabled><span class="btn-num-mark">②</span> <span class="btn-num-label">リンク済を選択</span></button>
       <div class="file-status" id="linkedFileStatus"></div>
     </div>
     <div class="action-col">
-      <button id="btnSelectFolder" class="btn btn-num btn-orange" disabled><span class="btn-num-mark">③</span> <span class="btn-num-label">図面フォルダを選択</span></button>
+      <button id="btnSelectFolder" class="btn btn-num btn-orange" disabled><span class="btn-num-mark">③</span> <span class="btn-num-label">フォルダパス入力</span></button>
       <div class="file-status" id="folderStatus"></div>
     </div>
     <div class="action-col">
-      <button id="btnExport" class="btn btn-num btn-green" disabled><span class="btn-num-mark">④</span> <span class="btn-num-label">ハイパーリンク付きExcelを保存</span></button>
+      <button id="btnExport" class="btn btn-num btn-green" disabled><span class="btn-num-mark">④</span> <span class="btn-num-label">Excelダウンロード</span></button>
     </div>
    </div>
   </header>
@@ -411,7 +411,7 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   <div id="basePathOverlay" class="loading-overlay">
     <div class="basepath-box">
       <div class="basepath-label">図面フォルダの絶対パスを入力してください</div>
-      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した直後にこのボタンを押すと自動入力されます。前後の &quot; は自動的に取り除かれます。選択予定フォルダ名まで含めて入力して構いません。</div>
+      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した内容を貼り付けてください（前後の &quot; は自動的に取り除かれます）。<br>OKを押すと、続けてフォルダ選択画面が開きます。上で入力したパスと同じフォルダをそこで選択し、アクセスを許可してください。</div>
       <textarea id="basePathTextarea" class="basepath-textarea"></textarea>
       <div class="basepath-actions">
         <button type="button" id="basePathCancelBtn" class="btn">キャンセル</button>
@@ -626,25 +626,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return base + '_' + stamp + '.xlsx';
   }
 
-  // ---------- ベースパスの自動記憶（画面には一切表示しない・内部のみ） ----------
-  // 会社サーバーへの接続パスはPCごとに異なるため、localStorageにPC単位で
-  // 記憶する。未設定の場合のみ、フォルダ選択の直前にprompt()で一度だけ尋ねる。
-
-  var BASE_PATH_STORAGE_KEY = 'excelDrawingLinkTool_basePath';
-
-  function saveBasePath(value) {
-    try { localStorage.setItem(BASE_PATH_STORAGE_KEY, value); } catch (e) { /* 無視 */ }
-  }
-
-  function loadBasePath() {
-    try { return localStorage.getItem(BASE_PATH_STORAGE_KEY) || ''; } catch (e) { return ''; }
-  }
-
-  el.basePathInput.value = loadBasePath();
-
-  // 初回prompt時の初期表示値（共通のサーバー共有ルート）。
-  // 工事ごとの下位フォルダ部分はユーザーがこの後ろに追記する想定。
-  var DEFAULT_BASE_PATH = '\\\\192.168.1.2\\share\\①進行中工事';
+  // ---------- ベースパスの入力（毎回空欄・記憶しない） ----------
+  // 絶対パスは毎回エクスプローラーの「パスのコピー」から貼り付けて使う運用
+  // のため、前回値やクリップボードを推測して事前入力する処理はあえて持たない。
 
   // Windows エクスプローラーの「パスのコピー」で得られる文字列は
   // 前後を二重引用符で囲んでいるため、あれば取り除く。
@@ -655,12 +639,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ベースパス入力用ポップアップ。テキストエリアなので長いパスも折り返して
   // 全文表示できる。OK/キャンセルで解決するPromise<string>を返す
   // （キャンセル・空欄の場合は空文字を解決）。
-  function askBasePath(defaultValue) {
+  function askBasePath() {
     return new Promise(function (resolve) {
-      el.basePathTextarea.value = defaultValue;
+      el.basePathTextarea.value = '';
       el.basePathOverlay.classList.add('show');
       el.basePathTextarea.focus();
-      el.basePathTextarea.select();
 
       function cleanup() {
         el.basePathOverlay.classList.remove('show');
@@ -687,30 +670,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
   }
 
-  // フォルダ選択のたびに、絶対パスを尋ねる（クリップボードに
-  // エクスプローラーの「パスのコピー」結果があれば自動で初期値に反映）。
+  // フォルダ選択のたびに、絶対パスを尋ねる（常に空欄から開始）。
   // 選択予定フォルダ名まで含めて入力してもよい（後続処理側で重複防止する）。
   // 取得できなければfalseを解決するPromiseを返す。
   function ensureBasePath() {
-    var fallback = el.basePathInput.value.trim() || DEFAULT_BASE_PATH;
-    var clipboardPromise = (navigator.clipboard && navigator.clipboard.readText)
-      ? navigator.clipboard.readText().catch(function () { return ''; })
-      : Promise.resolve('');
-
-    return clipboardPromise.then(function (clip) {
-      var cleaned = stripQuotes((clip || '').trim());
-      var looksLikePath = /^\\\\/.test(cleaned) || /^[A-Za-z]:\\/.test(cleaned);
-      var defaultValue = looksLikePath ? cleaned : fallback;
-
-      return askBasePath(defaultValue).then(function (input) {
-        if (!input) {
-          showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
-          return false;
-        }
-        el.basePathInput.value = input;
-        saveBasePath(input);
-        return true;
-      });
+    return askBasePath().then(function (input) {
+      if (!input) {
+        showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
+        return false;
+      }
+      el.basePathInput.value = input;
+      return true;
     });
   }
 
