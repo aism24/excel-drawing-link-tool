@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.6';
+  var APP_VERSION = '2026-07-30.7';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -382,7 +382,7 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   .basepath-warn { animation: none; }
 }
 
-.mode-switch { display: flex; justify-content: center; margin: 0 0 20px; }
+.mode-switch { display: flex; justify-content: center; width: 100%; margin: 0; }
 .mode-toggle-pair { position: relative; display: flex; gap: 10px; }
 .mode-btn {
   width: 180px; padding: 10px 20px; border-radius: 999px; border: 1px solid var(--border);
@@ -465,15 +465,15 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
       <button id="btnExport" class="btn btn-num btn-green" disabled><span class="btn-num-mark">④</span> <span class="btn-num-label">Excelダウンロード</span></button>
     </div>
    </div>
-  </header>
 
-  <div class="mode-switch" id="modeSwitch">
-    <div class="mode-toggle-pair">
-      <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">リンク付与ツール</button>
-      <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">図面ビューア</button>
-      <button type="button" class="mode-btn mode-btn-action" id="btnImportViewer" style="display:none;">⑤ Excelインポート</button>
-    </div>
-  </div>
+   <div class="mode-switch" id="modeSwitch">
+     <div class="mode-toggle-pair">
+       <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">リンク付与ツール</button>
+       <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">図面ビューア</button>
+       <button type="button" class="mode-btn mode-btn-action" id="btnImportViewer" style="display:none;">⑤ Excelインポート</button>
+     </div>
+   </div>
+  </header>
 
   <input type="hidden" id="basePathInput">
 
