@@ -307,6 +307,30 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 @media (prefers-reduced-motion: reduce) {
   .btn, .toast, .loading-bar-fill { transition: none; }
 }
+
+.basepath-box {
+  background: var(--paper); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 24px 28px; width: min(720px, 90vw); text-align: left;
+}
+.basepath-label {
+  font-family: var(--font-ui); font-weight: 600; font-size: 14px;
+  color: var(--ink); margin-bottom: 6px;
+}
+.basepath-hint {
+  font-size: 12px; color: var(--ink-faint); margin-bottom: 12px; line-height: 1.6;
+}
+.basepath-textarea {
+  width: 100%; min-height: 140px; max-height: 40vh; resize: vertical;
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+  color: var(--ink); background: var(--paper); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+.basepath-textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.basepath-actions {
+  margin-top: 14px; display: flex; justify-content: flex-end; gap: 10px;
+}
 </style>
 </head>
 <body>
@@ -381,6 +405,18 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
         <div class="loading-bar-fill" id="loadingBarFill"></div>
       </div>
       <div class="loading-percent" id="loadingPercent">0%</div>
+    </div>
+  </div>
+
+  <div id="basePathOverlay" class="loading-overlay">
+    <div class="basepath-box">
+      <div class="basepath-label">図面フォルダの絶対パスを入力してください</div>
+      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した直後にこのボタンを押すと自動入力されます。前後の &quot; は自動的に取り除かれます。選択予定フォルダ名まで含めて入力して構いません。</div>
+      <textarea id="basePathTextarea" class="basepath-textarea"></textarea>
+      <div class="basepath-actions">
+        <button type="button" id="basePathCancelBtn" class="btn">キャンセル</button>
+        <button type="button" id="basePathOkBtn" class="btn btn-primary">OK</button>
+      </div>
     </div>
   </div>
 
@@ -480,7 +516,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     loadingOverlay: document.getElementById('loadingOverlay'),
     loadingLabel: document.getElementById('loadingLabel'),
     loadingBarFill: document.getElementById('loadingBarFill'),
-    loadingPercent: document.getElementById('loadingPercent')
+    loadingPercent: document.getElementById('loadingPercent'),
+    basePathOverlay: document.getElementById('basePathOverlay'),
+    basePathTextarea: document.getElementById('basePathTextarea'),
+    basePathOkBtn: document.getElementById('basePathOkBtn'),
+    basePathCancelBtn: document.getElementById('basePathCancelBtn')
   };
 
   function showToast(msg) {
@@ -612,6 +652,41 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return s.replace(/^"(.*)"$/, '$1');
   }
 
+  // ベースパス入力用ポップアップ。テキストエリアなので長いパスも折り返して
+  // 全文表示できる。OK/キャンセルで解決するPromise<string>を返す
+  // （キャンセル・空欄の場合は空文字を解決）。
+  function askBasePath(defaultValue) {
+    return new Promise(function (resolve) {
+      el.basePathTextarea.value = defaultValue;
+      el.basePathOverlay.classList.add('show');
+      el.basePathTextarea.focus();
+      el.basePathTextarea.select();
+
+      function cleanup() {
+        el.basePathOverlay.classList.remove('show');
+        el.basePathOkBtn.removeEventListener('click', onOk);
+        el.basePathCancelBtn.removeEventListener('click', onCancel);
+        el.basePathTextarea.removeEventListener('keydown', onKeydown);
+      }
+      function onOk() {
+        var val = stripQuotes(el.basePathTextarea.value.trim());
+        cleanup();
+        resolve(val);
+      }
+      function onCancel() {
+        cleanup();
+        resolve('');
+      }
+      function onKeydown(e) {
+        if (e.key === 'Escape') { onCancel(); }
+        else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { onOk(); }
+      }
+      el.basePathOkBtn.addEventListener('click', onOk);
+      el.basePathCancelBtn.addEventListener('click', onCancel);
+      el.basePathTextarea.addEventListener('keydown', onKeydown);
+    });
+  }
+
   // フォルダ選択のたびに、絶対パスを尋ねる（クリップボードに
   // エクスプローラーの「パスのコピー」結果があれば自動で初期値に反映）。
   // 選択予定フォルダ名まで含めて入力してもよい（後続処理側で重複防止する）。
@@ -627,14 +702,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var looksLikePath = /^\\\\/.test(cleaned) || /^[A-Za-z]:\\/.test(cleaned);
       var defaultValue = looksLikePath ? cleaned : fallback;
 
-      var input = window.prompt('図面フォルダの絶対パスを入力してください\n（エクスプローラーで対象フォルダを右クリック→「パスのコピー」した直後にこのボタンを押すと自動入力されます。選択予定フォルダ名まで含めて入力して構いません）\n※この端末では次回、この内容が初期表示されます。', defaultValue);
-      if (!input || !input.trim()) {
-        showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
-        return false;
-      }
-      el.basePathInput.value = input.trim();
-      saveBasePath(input.trim());
-      return true;
+      return askBasePath(defaultValue).then(function (input) {
+        if (!input) {
+          showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
+          return false;
+        }
+        el.basePathInput.value = input;
+        saveBasePath(input);
+        return true;
+      });
     });
   }
 
