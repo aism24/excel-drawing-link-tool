@@ -519,11 +519,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   el.basePathInput.value = loadBasePath();
 
+  // 初回prompt時の初期表示値（共通のサーバー共有ルート）。
+  // 工事ごとの下位フォルダ部分はユーザーがこの後ろに追記する想定。
+  var DEFAULT_BASE_PATH = '\\\\192.168.1.2\\share\\①進行中工事';
+
   // フォルダ選択前にベースパスが未設定なら尋ねる。取得できなければfalseを返す。
   function ensureBasePath() {
     var current = el.basePathInput.value.trim();
     if (current) return true;
-    var input = window.prompt('図面フォルダの絶対パスを入力してください（例: C:\\Users\\sumi\\Desktop\\図面フォルダ）\n※この端末では次回以降、自動的に記憶されます。');
+    var input = window.prompt('図面フォルダの絶対パスを入力してください（末尾に工事名・図面種別のフォルダまで追記してください）\n※この端末では次回以降、自動的に記憶されます。', DEFAULT_BASE_PATH);
     if (!input || !input.trim()) {
       showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
       return false;
