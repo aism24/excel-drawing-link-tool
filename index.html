@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.5';
+  var APP_VERSION = '2026-07-30.6';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -912,20 +912,36 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var rowCount = ws.rowCount;
         for (var r = 2; r <= rowCount; r++) {
           var id = cellRawText(ws.getCell(r, COL_ID));
-          var drawingNo = cellRawText(ws.getCell(r, COL_DRAWING));
+          var drawingCell = ws.getCell(r, COL_DRAWING);
+          var drawingNo = cellRawText(drawingCell);
           var productMark = cellRawText(ws.getCell(r, COL_PRODUCT_MARK));
-          var status = drawingNo === '' ? '対象外' : '未発見';
+          // インポートしたマスタの図番セルに既にハイパーリンクが付与済みの
+          // 場合（例: 一度リンク付与済みのExcelを①で読み込んだ場合）は、
+          // その場で「正常」として認識する。以後の③フォルダ照合では
+          // 既に「正常」の行として自動的にロックされ上書きされない。
+          var existingLink = getCellHyperlink(drawingCell);
+          var status, hyperlinkUrl, matchedFileName, source;
+          if (drawingNo === '') {
+            status = '対象外'; hyperlinkUrl = ''; matchedFileName = ''; source = '';
+          } else if (existingLink) {
+            status = '正常';
+            hyperlinkUrl = existingLink;
+            matchedFileName = displayNameFromUrl(existingLink) + '（既存リンク）';
+            source = 'existing';
+          } else {
+            status = '未発見'; hyperlinkUrl = ''; matchedFileName = ''; source = '';
+          }
           state.rows.push({
             rowNumber: r,
             id: id,
             drawingNo: drawingNo,
             productMark: productMark,
             status: status,
-            matchedFileName: '',
+            matchedFileName: matchedFileName,
             matchedBasePath: '',
-            hyperlinkUrl: '',
+            hyperlinkUrl: hyperlinkUrl,
             candidates: [],
-            source: ''
+            source: source
           });
         }
 
