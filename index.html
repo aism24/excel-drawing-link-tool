@@ -473,9 +473,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   function buildFileUrl(basePath, fileName) {
     var normalized = (basePath || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    var isUnc = /^\/\//.test(normalized);
     var path = normalized + '/' + fileName;
-    path = path.replace(/^\/+/, '');
-    var url = 'file:///' + path;
+    var url;
+    if (isUnc) {
+      url = 'file:' + path;
+    } else {
+      path = path.replace(/^\/+/, '');
+      url = 'file:///' + path;
+    }
     return url.replace(/ /g, '%20');
   }
 
