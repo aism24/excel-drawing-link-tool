@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.1';
+  var APP_VERSION = '2026-07-30.2';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -379,20 +379,29 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 
 .mode-switch { display: flex; gap: 10px; justify-content: center; margin: 0 0 20px; flex-wrap: wrap; }
 .mode-btn {
-  padding: 10px 20px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--paper); color: var(--ink-soft);
+  width: 180px; padding: 10px 20px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--paper); color: var(--ink-soft); text-align: center;
   font-family: var(--font-ui); font-weight: 600; font-size: 13.5px; cursor: pointer;
 }
 .mode-btn:hover { filter: brightness(0.97); }
 .mode-btn.active { background: var(--accent-strong); color: var(--paper); border-color: var(--accent-strong); }
+.mode-btn.mode-btn-action {
+  width: auto; background: var(--accent); color: var(--paper); border-color: var(--accent);
+}
+.mode-btn.mode-btn-action:hover { filter: brightness(1.06); }
 
-.viewer-filter-group { margin-bottom: 16px; }
+.viewer-filter-group { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
 .viewer-filter-group:last-child { margin-bottom: 0; }
 .viewer-filter-label {
+  flex: 0 0 auto; min-width: 64px;
   font-family: var(--font-ui); font-size: 12px; font-weight: 600;
-  color: var(--ink-faint); margin-bottom: 8px; letter-spacing: 0.04em;
+  color: var(--ink-faint); letter-spacing: 0.04em;
 }
-.viewer-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.viewer-chip-row { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.viewer-select {
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 12.5px;
+}
 .viewer-chip {
   padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--paper-sunken); color: var(--ink-soft);
@@ -449,8 +458,9 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
   </header>
 
   <div class="mode-switch" id="modeSwitch">
-    <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">① リンク付与ツール</button>
-    <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">② 図面ビューア</button>
+    <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">リンク付与ツール</button>
+    <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">図面ビューア</button>
+    <button type="button" class="mode-btn mode-btn-action" id="btnImportViewer" style="display:none;">⑤ Excelインポート</button>
   </div>
 
   <input type="hidden" id="basePathInput">
@@ -492,14 +502,11 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
   </div>
 
   <div id="viewModeSection" style="display:none;">
-    <div class="card">
-      <div class="guide-title">表示用Excelのインポート</div>
-      <button type="button" class="btn btn-secondary" id="btnImportViewer" style="width:auto; padding:10px 20px;">⑤ 表示用Excelを選択（単体インポート）</button>
-      <div class="file-status" id="viewerFileStatus"></div>
-      <div class="hint">①でマスタを読み込み済みの場合、または④でダウンロードした直後は、そのデータがそのままここに反映されています。別のExcelファイルを見たい場合のみこのボタンを使ってください。</div>
-    </div>
-
     <div class="card" id="viewerFilterCard" style="display:none;">
+      <div class="viewer-filter-group">
+        <div class="viewer-filter-label">加工先</div>
+        <div class="viewer-chip-row" id="viewerKakosakiRow"></div>
+      </div>
       <div class="viewer-filter-group">
         <div class="viewer-filter-label">加工状況</div>
         <div class="viewer-chip-row" id="viewerProcessedRow">
@@ -507,21 +514,22 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
           <button type="button" class="viewer-chip" data-processed="notdone">未加工</button>
         </div>
       </div>
-      <div class="viewer-filter-group" id="viewerMonthGroup" style="display:none;">
-        <div class="viewer-filter-label">月で絞り込み</div>
-        <div class="viewer-chip-row" id="viewerMonthRow"></div>
-      </div>
-      <div class="viewer-filter-group" id="viewerDateGroup" style="display:none;">
-        <div class="viewer-filter-label">日付で絞り込み</div>
-        <div class="viewer-chip-row" id="viewerDateRow"></div>
-      </div>
       <div class="viewer-filter-group">
         <div class="viewer-filter-label">部位</div>
         <div class="viewer-chip-row" id="viewerBuiRow"></div>
       </div>
-      <div class="viewer-filter-group">
-        <div class="viewer-filter-label">加工先</div>
-        <div class="viewer-chip-row" id="viewerKakosakiRow"></div>
+      <div class="viewer-filter-group" id="viewerMonthGroup" style="display:none;">
+        <div class="viewer-filter-label">月</div>
+        <div class="viewer-chip-row" id="viewerMonthRow"></div>
+      </div>
+      <div class="viewer-filter-group" id="viewerDateGroup" style="display:none;">
+        <div class="viewer-filter-label">日</div>
+        <div class="viewer-chip-row">
+          <button type="button" class="viewer-chip" id="viewerDateAllBtn">全て</button>
+          <select class="viewer-select" id="viewerDateSelect">
+            <option value="">-- 日付を選択 --</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -684,13 +692,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     viewModeSection: document.getElementById('viewModeSection'),
     btnImportViewer: document.getElementById('btnImportViewer'),
     viewerFileInput: document.getElementById('viewerFileInput'),
-    viewerFileStatus: document.getElementById('viewerFileStatus'),
     viewerFilterCard: document.getElementById('viewerFilterCard'),
     viewerProcessedRow: document.getElementById('viewerProcessedRow'),
     viewerMonthGroup: document.getElementById('viewerMonthGroup'),
     viewerMonthRow: document.getElementById('viewerMonthRow'),
     viewerDateGroup: document.getElementById('viewerDateGroup'),
-    viewerDateRow: document.getElementById('viewerDateRow'),
+    viewerDateAllBtn: document.getElementById('viewerDateAllBtn'),
+    viewerDateSelect: document.getElementById('viewerDateSelect'),
     viewerBuiRow: document.getElementById('viewerBuiRow'),
     viewerKakosakiRow: document.getElementById('viewerKakosakiRow'),
     viewerTableCard: document.getElementById('viewerTableCard'),
@@ -1471,6 +1479,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     el.modeBtnView.classList.toggle('active', state.mode === 'view');
     el.linkModeSection.style.display = state.mode === 'link' ? '' : 'none';
     el.viewModeSection.style.display = state.mode === 'view' ? '' : 'none';
+    el.btnImportViewer.style.display = state.mode === 'view' ? '' : 'none';
     if (state.mode === 'view') renderViewerAll();
   }
 
@@ -1503,6 +1512,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return String(v);
   }
 
+  // 重量は小数第2位で四捨五入して表示する（ユーザー指定）。
+  function roundedWeightText(cell) {
+    var raw = cellNumberText(cell);
+    var n = parseFloat(raw);
+    if (isNaN(n)) return raw;
+    return (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
+  }
+
   // 加工日(X列)はExcelの日付セルのためExcelJSがJS Dateとして返す。シリアル値
   // 由来でタイムゾーンの概念を持たないため、常にUTCゲッターで年月日を扱う
   // （PCのタイムゾーン設定に関わらず同じ日付として扱われるようにするため）。
@@ -1532,7 +1549,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         productMark: cellRawText(ws.getCell(r, COL_PRODUCT_MARK)),
         size: cellRawText(ws.getCell(r, COL_SIZE)),
         length: cellNumberText(ws.getCell(r, COL_LENGTH)),
-        weight: cellNumberText(ws.getCell(r, COL_WEIGHT)),
+        weight: roundedWeightText(ws.getCell(r, COL_WEIGHT)),
         kakouDate: isDone ? kakouVal : null,
         processed: isDone ? 'done' : 'notdone',
         hyperlinkUrl: getCellHyperlink(drawingCell)
@@ -1570,11 +1587,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     renderViewerAll();
   });
 
-  el.viewerDateRow.addEventListener('click', function (e) {
-    var btn = e.target.closest('.viewer-chip');
-    if (!btn) return;
-    var val = btn.dataset.date;
-    state.viewerFilters.date = (state.viewerFilters.date === val) ? null : val;
+  el.viewerDateAllBtn.addEventListener('click', function () {
+    state.viewerFilters.date = null;
+    renderViewerAll();
+  });
+
+  el.viewerDateSelect.addEventListener('change', function () {
+    state.viewerFilters.date = el.viewerDateSelect.value || null;
     renderViewerAll();
   });
 
@@ -1644,9 +1663,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.viewerMonthGroup.style.display = 'none';
     }
 
-    // 日付ボタン: 月が選択されている時のみ表示。選択中の月に属する日付だけを昇順表示
+    // 日付: 月が選択されている時のみ表示。「全て」ボタン＋選択中の月に属する
+    // 日付だけのドロップダウンリスト（昇順）。
     if (f.processed === 'done' && f.month) {
       el.viewerDateGroup.style.display = '';
+      el.viewerDateAllBtn.classList.toggle('active', !f.date);
       var dateMap = {};
       state.viewerRows.forEach(function (row) {
         if (row.kakouDate && monthKey(row.kakouDate) === f.month) {
@@ -1654,15 +1675,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
       });
       var dateKeys = Object.keys(dateMap).sort();
-      el.viewerDateRow.innerHTML = '';
+      el.viewerDateSelect.innerHTML = '';
+      var placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- 日付を選択 --';
+      el.viewerDateSelect.appendChild(placeholder);
       dateKeys.forEach(function (dk) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'viewer-chip' + (f.date === dk ? ' active' : '');
-        btn.dataset.date = dk;
-        btn.textContent = dateLabel(dateMap[dk]);
-        el.viewerDateRow.appendChild(btn);
+        var opt = document.createElement('option');
+        opt.value = dk;
+        opt.textContent = dateLabel(dateMap[dk]);
+        el.viewerDateSelect.appendChild(opt);
       });
+      el.viewerDateSelect.value = f.date || '';
     } else {
       el.viewerDateGroup.style.display = 'none';
     }
@@ -1761,7 +1785,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           showToast('エラー: シート「' + TARGET_SHEET_NAME + '」が見つかりません');
           return;
         }
-        el.viewerFileStatus.textContent = file.name;
         state.viewerFilters = { processed: null, month: null, date: null, bui: new Set(), kakosaki: new Set() };
         refreshViewerData(ws);
         state.mode = 'view';
