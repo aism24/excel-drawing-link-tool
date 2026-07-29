@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-29.4';
+  var APP_VERSION = '2026-07-29.5';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1090,6 +1090,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     renderAll();
   }
 
+  // 手動修正で選び間違えた場合の取り消し用。「正常」行の手動修正ドロップ
+  // ダウンにある「-- 未発見に戻す --」を選ぶと呼ばれる。単純に未解決の
+  // 状態へ戻すだけで、自動再マッチングは行わない（同じファイルへ即座に
+  // 戻ってしまわないようにするため。ユーザーが改めて手動修正欄から選び
+  // 直す想定）。
+  function resetToNotFound(row) {
+    row.status = '未発見';
+    row.matchedFileName = null;
+    row.matchedBasePath = null;
+    row.hyperlinkUrl = null;
+    row.candidates = [];
+    row.source = null;
+    renderAll();
+  }
+
   // ---------- 描画 ----------
 
   function renderAll() {
@@ -1162,6 +1177,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       ? state.rows.filter(function (r) { return r.status === state.statusFilter; })
       : state.rows;
 
+    // 既に「正常」行がハイパーリンク先として使っているファイルのキー集合。
+    // 「未発見」「重複」の手動修正候補からは、他の行で使用中のファイルを
+    // 除外するために使う（「正常」行自身の手動修正では絞り込まず全件表示）。
+    var usedFileKeys = {};
+    state.rows.forEach(function (r) {
+      if (r.status === '正常' && r.matchedFileName) {
+        usedFileKeys[r.matchedBasePath + '::' + r.matchedFileName] = true;
+      }
+    });
+
     visibleRows.forEach(function (row) {
       var tr = document.createElement('tr');
       tr.className = STATUS_CLASS[row.status].row;
@@ -1190,9 +1215,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       tr.appendChild(tdFile);
 
       var tdFix = document.createElement('td');
-      if (row.status === '未発見' || row.status === '重複') {
-        var options = row.status === '重複' ? row.candidates : state.filePool;
-        if (options.length === 0) {
+      var isNormalRow = row.status === '正常';
+      if (row.status === '未発見' || row.status === '重複' || isNormalRow) {
+        var options;
+        if (isNormalRow) {
+          options = state.filePool; // 正常行の手動修正は絞り込まず全ファイル表示
+        } else if (row.status === '重複') {
+          options = row.candidates.filter(function (f) {
+            return !usedFileKeys[f.basePath + '::' + f.fileName];
+          });
+        } else {
+          options = state.filePool.filter(function (f) {
+            return !usedFileKeys[f.basePath + '::' + f.fileName];
+          });
+        }
+        if (options.length === 0 && !isNormalRow) {
           tdFix.textContent = '(候補なし)';
         } else {
           var select = document.createElement('select');
@@ -1201,6 +1238,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           placeholder.value = '';
           placeholder.textContent = '-- 選択してください --';
           select.appendChild(placeholder);
+          if (isNormalRow) {
+            var resetOption = document.createElement('option');
+            resetOption.value = '__reset__';
+            resetOption.textContent = '-- 未発見に戻す --';
+            select.appendChild(resetOption);
+          }
           // 候補が数千行×数百件規模になると、全行分を表示時に一括生成する
           // だけで数秒〜数十秒級の画面フリーズが発生するため、この行の
           // ドロップダウンを実際に開こうとした瞬間（mousedown/focus）に
@@ -1220,6 +1263,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           select.addEventListener('focus', populateOptions);
           select.addEventListener('change', function () {
             if (select.value === '') return;
+            if (select.value === '__reset__') {
+              resetToNotFound(row);
+              return;
+            }
             applyManualFix(row, options[Number(select.value)]);
           });
           tdFix.appendChild(select);
