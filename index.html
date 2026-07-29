@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-29.6';
+  var APP_VERSION = '2026-07-30.1';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -376,6 +376,49 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 @media (prefers-reduced-motion: reduce) {
   .basepath-warn { animation: none; }
 }
+
+.mode-switch { display: flex; gap: 10px; justify-content: center; margin: 0 0 20px; flex-wrap: wrap; }
+.mode-btn {
+  padding: 10px 20px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--paper); color: var(--ink-soft);
+  font-family: var(--font-ui); font-weight: 600; font-size: 13.5px; cursor: pointer;
+}
+.mode-btn:hover { filter: brightness(0.97); }
+.mode-btn.active { background: var(--accent-strong); color: var(--paper); border-color: var(--accent-strong); }
+
+.viewer-filter-group { margin-bottom: 16px; }
+.viewer-filter-group:last-child { margin-bottom: 0; }
+.viewer-filter-label {
+  font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+  color: var(--ink-faint); margin-bottom: 8px; letter-spacing: 0.04em;
+}
+.viewer-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.viewer-chip {
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--paper-sunken); color: var(--ink-soft);
+  font-size: 12.5px; font-family: var(--font-ui); font-weight: 600; cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+.viewer-chip:hover { filter: brightness(0.97); }
+.viewer-chip:active { transform: scale(0.97); }
+.viewer-chip.active {
+  background: var(--accent-soft); color: var(--accent-strong); border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.viewer-table th, .viewer-table td {
+  border-bottom: 1px solid var(--border); padding: 8px 9px; text-align: left;
+  font-family: var(--font-mono);
+}
+.viewer-table th {
+  background: var(--paper-sunken); position: sticky; top: 0;
+  font-family: var(--font-ui); font-weight: 600; font-size: 11px;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint);
+}
+.viewer-row-clickable { cursor: pointer; }
+.viewer-row-clickable:hover { background: var(--accent-soft); }
+.viewer-row-disabled { opacity: 0.4; }
+.viewer-empty-hint { color: var(--ink-faint); font-size: 13px; padding: 10px 0; }
 </style>
 </head>
 <body>
@@ -405,8 +448,14 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
    </div>
   </header>
 
+  <div class="mode-switch" id="modeSwitch">
+    <button type="button" class="mode-btn active" id="modeBtnLink" data-mode="link">① リンク付与ツール</button>
+    <button type="button" class="mode-btn" id="modeBtnView" data-mode="view">② 図面ビューア</button>
+  </div>
+
   <input type="hidden" id="basePathInput">
 
+  <div id="linkModeSection">
   <div class="card" id="folderLogCard" style="display:none;">
     <div class="guide-title">登録済みフォルダ一覧</div>
     <table class="folder-log-table" id="folderLogTable">
@@ -440,6 +489,58 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
       </table>
     </div>
   </div>
+  </div>
+
+  <div id="viewModeSection" style="display:none;">
+    <div class="card">
+      <div class="guide-title">表示用Excelのインポート</div>
+      <button type="button" class="btn btn-secondary" id="btnImportViewer" style="width:auto; padding:10px 20px;">⑤ 表示用Excelを選択（単体インポート）</button>
+      <div class="file-status" id="viewerFileStatus"></div>
+      <div class="hint">①でマスタを読み込み済みの場合、または④でダウンロードした直後は、そのデータがそのままここに反映されています。別のExcelファイルを見たい場合のみこのボタンを使ってください。</div>
+    </div>
+
+    <div class="card" id="viewerFilterCard" style="display:none;">
+      <div class="viewer-filter-group">
+        <div class="viewer-filter-label">加工状況</div>
+        <div class="viewer-chip-row" id="viewerProcessedRow">
+          <button type="button" class="viewer-chip" data-processed="done">加工済</button>
+          <button type="button" class="viewer-chip" data-processed="notdone">未加工</button>
+        </div>
+      </div>
+      <div class="viewer-filter-group" id="viewerMonthGroup" style="display:none;">
+        <div class="viewer-filter-label">月で絞り込み</div>
+        <div class="viewer-chip-row" id="viewerMonthRow"></div>
+      </div>
+      <div class="viewer-filter-group" id="viewerDateGroup" style="display:none;">
+        <div class="viewer-filter-label">日付で絞り込み</div>
+        <div class="viewer-chip-row" id="viewerDateRow"></div>
+      </div>
+      <div class="viewer-filter-group">
+        <div class="viewer-filter-label">部位</div>
+        <div class="viewer-chip-row" id="viewerBuiRow"></div>
+      </div>
+      <div class="viewer-filter-group">
+        <div class="viewer-filter-label">加工先</div>
+        <div class="viewer-chip-row" id="viewerKakosakiRow"></div>
+      </div>
+    </div>
+
+    <div class="card" id="viewerTableCard" style="display:none;">
+      <div class="guide-title">図面一覧（クリックで絶対パスをコピー）</div>
+      <div class="table-scroll">
+        <table class="viewer-table" id="viewerTable">
+          <thead>
+            <tr>
+              <th>部位</th><th>加工先</th><th>図番</th><th>製品マーク</th>
+              <th>サイズ</th><th>長さ</th><th>重量</th><th>加工日</th>
+            </tr>
+          </thead>
+          <tbody id="viewerTbody"></tbody>
+        </table>
+      </div>
+      <div class="viewer-empty-hint" id="viewerEmptyHint" style="display:none;">条件に一致するデータがありません</div>
+    </div>
+  </div>
 
   <div id="toast" class="toast"></div>
 
@@ -468,6 +569,7 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   <input type="file" id="sourceFileInput" accept=".xlsx" style="display:none">
   <input type="file" id="linkedFileInput" accept=".xlsx" style="display:none">
   <input type="file" id="folderInput" webkitdirectory style="display:none">
+  <input type="file" id="viewerFileInput" accept=".xlsx" style="display:none">
 </div>
 
 <script>
@@ -523,8 +625,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   var TARGET_SHEET_NAME = 'ﾏｽﾀｰﾃﾞｰﾀ';
   var COL_ID = 1;
+  var COL_BUI = 4;
+  var COL_KAKOSAKI = 5;
   var COL_DRAWING = 6;
   var COL_PRODUCT_MARK = 7;
+  var COL_SIZE = 8;
+  var COL_LENGTH = 11;
+  var COL_WEIGHT = 13;
+  var COL_KAKOU = 24;
   var HYPERLINK_COLOR_ARGB = 'FF0563C1';
 
   var state = {
@@ -534,7 +642,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     rows: [],
     filePool: [],
     folderLog: [],
-    statusFilter: null // null=全件表示。サマリーバッジのクリックで該当ステータスに絞り込む
+    statusFilter: null, // null=全件表示。サマリーバッジのクリックで該当ステータスに絞り込む
+    mode: 'link', // 'link'=①リンク付与ツール／'view'=②図面ビューア
+    viewerRows: [],
+    viewerFilters: { processed: null, month: null, date: null, bui: new Set(), kakosaki: new Set() }
   };
 
   var el = {
@@ -566,7 +677,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     basePathOverlay: document.getElementById('basePathOverlay'),
     basePathTextarea: document.getElementById('basePathTextarea'),
     basePathOkBtn: document.getElementById('basePathOkBtn'),
-    basePathCancelBtn: document.getElementById('basePathCancelBtn')
+    basePathCancelBtn: document.getElementById('basePathCancelBtn'),
+    modeBtnLink: document.getElementById('modeBtnLink'),
+    modeBtnView: document.getElementById('modeBtnView'),
+    linkModeSection: document.getElementById('linkModeSection'),
+    viewModeSection: document.getElementById('viewModeSection'),
+    btnImportViewer: document.getElementById('btnImportViewer'),
+    viewerFileInput: document.getElementById('viewerFileInput'),
+    viewerFileStatus: document.getElementById('viewerFileStatus'),
+    viewerFilterCard: document.getElementById('viewerFilterCard'),
+    viewerProcessedRow: document.getElementById('viewerProcessedRow'),
+    viewerMonthGroup: document.getElementById('viewerMonthGroup'),
+    viewerMonthRow: document.getElementById('viewerMonthRow'),
+    viewerDateGroup: document.getElementById('viewerDateGroup'),
+    viewerDateRow: document.getElementById('viewerDateRow'),
+    viewerBuiRow: document.getElementById('viewerBuiRow'),
+    viewerKakosakiRow: document.getElementById('viewerKakosakiRow'),
+    viewerTableCard: document.getElementById('viewerTableCard'),
+    viewerTbody: document.getElementById('viewerTbody'),
+    viewerEmptyHint: document.getElementById('viewerEmptyHint')
   };
 
   function showToast(msg) {
@@ -783,6 +912,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         el.btnSelectFolder.disabled = false;
         el.btnExport.disabled = false;
         renderAll();
+        refreshViewerData(ws);
         loader.finish();
         showToast('元データExcelを読み込みました');
       }).catch(function (err) {
@@ -1310,6 +1440,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     });
 
+    refreshViewerData(ws);
+
     state.sourceWorkbook.xlsx.writeBuffer().then(function (buffer) {
       var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       var url = URL.createObjectURL(blob);
@@ -1327,6 +1459,324 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       showToast('保存失敗: ' + (err.message || err));
     });
   });
+
+  // ================================================================
+  // ---------- ② 図面ビューアモード ----------
+  // ================================================================
+
+  // ---------- モード切替 ----------
+
+  function applyMode() {
+    el.modeBtnLink.classList.toggle('active', state.mode === 'link');
+    el.modeBtnView.classList.toggle('active', state.mode === 'view');
+    el.linkModeSection.style.display = state.mode === 'link' ? '' : 'none';
+    el.viewModeSection.style.display = state.mode === 'view' ? '' : 'none';
+    if (state.mode === 'view') renderViewerAll();
+  }
+
+  el.modeBtnLink.addEventListener('click', function () { state.mode = 'link'; applyMode(); });
+  el.modeBtnView.addEventListener('click', function () { state.mode = 'view'; applyMode(); });
+
+  // ---------- データ構築 ----------
+
+  // buildFileUrl()の逆変換。file://のハイパーリンクURLから、エクスプローラーの
+  // アドレスバーに貼り付けてそのまま開ける形（バックスラッシュ区切り・%20等を
+  // 元の文字に戻した状態）のローカルパス文字列を作る。
+  function urlToLocalPath(url) {
+    var decoded;
+    try { decoded = decodeURIComponent(url); } catch (e) { decoded = url; }
+    var path;
+    if (decoded.indexOf('file:///') === 0) {
+      path = decoded.slice('file:///'.length); // 例: C:/folder/file.tdf
+    } else if (decoded.indexOf('file://') === 0) {
+      path = '//' + decoded.slice('file://'.length); // 例: //192.168.1.2/share/...(UNC)
+    } else {
+      path = decoded;
+    }
+    return path.replace(/\//g, '\\');
+  }
+
+  function cellNumberText(cell) {
+    var v = cell.value;
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object' && v.result !== undefined) return String(v.result);
+    return String(v);
+  }
+
+  // 加工日(X列)はExcelの日付セルのためExcelJSがJS Dateとして返す。シリアル値
+  // 由来でタイムゾーンの概念を持たないため、常にUTCゲッターで年月日を扱う
+  // （PCのタイムゾーン設定に関わらず同じ日付として扱われるようにするため）。
+  function monthKey(d) { return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'); }
+  function monthLabel(d) { return d.getUTCFullYear() + '年' + (d.getUTCMonth() + 1) + '月'; }
+  function dateKey(d) { return monthKey(d) + '-' + String(d.getUTCDate()).padStart(2, '0'); }
+  function dateLabel(d) { return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); }
+  function dateDisplay(d) { return d.getUTCFullYear() + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0'); }
+
+  // 図番(F列)が空欄の行(=対象外)はビューアでも対象外。それ以外は全行を対象にし、
+  // 加工日(X列)がDateならその日付をkakouDateに持たせ「加工済」、それ以外
+  // (空欄／'*')は「未加工」として扱う。
+  function buildViewerRows(ws) {
+    var rows = [];
+    var rowCount = ws.rowCount;
+    for (var r = 2; r <= rowCount; r++) {
+      var drawingCell = ws.getCell(r, COL_DRAWING);
+      var drawingNo = cellRawText(drawingCell);
+      if (drawingNo === '') continue;
+      var kakouVal = ws.getCell(r, COL_KAKOU).value;
+      var isDone = kakouVal instanceof Date;
+      rows.push({
+        rowNumber: r,
+        bui: cellRawText(ws.getCell(r, COL_BUI)),
+        kakosaki: cellRawText(ws.getCell(r, COL_KAKOSAKI)),
+        drawingNo: drawingNo,
+        productMark: cellRawText(ws.getCell(r, COL_PRODUCT_MARK)),
+        size: cellRawText(ws.getCell(r, COL_SIZE)),
+        length: cellNumberText(ws.getCell(r, COL_LENGTH)),
+        weight: cellNumberText(ws.getCell(r, COL_WEIGHT)),
+        kakouDate: isDone ? kakouVal : null,
+        processed: isDone ? 'done' : 'notdone',
+        hyperlinkUrl: getCellHyperlink(drawingCell)
+      });
+    }
+    return rows;
+  }
+
+  // ①マスタImport直後・④Excelダウンロード直前(ハイパーリンク付与直後)の両方
+  // から呼ばれ、ビューア用データを常に最新の状態に保つ。これにより、
+  // リンク付与ツールでの作業結果を再インポートなしでそのままビューアに反映できる。
+  function refreshViewerData(ws) {
+    state.viewerRows = buildViewerRows(ws);
+    renderViewerAll();
+  }
+
+  // ---------- フィルタ操作 ----------
+
+  el.viewerProcessedRow.addEventListener('click', function (e) {
+    var btn = e.target.closest('.viewer-chip');
+    if (!btn) return;
+    var val = btn.dataset.processed;
+    state.viewerFilters.processed = (state.viewerFilters.processed === val) ? null : val;
+    state.viewerFilters.month = null;
+    state.viewerFilters.date = null;
+    renderViewerAll();
+  });
+
+  el.viewerMonthRow.addEventListener('click', function (e) {
+    var btn = e.target.closest('.viewer-chip');
+    if (!btn) return;
+    var val = btn.dataset.month;
+    state.viewerFilters.month = (state.viewerFilters.month === val) ? null : val;
+    state.viewerFilters.date = null;
+    renderViewerAll();
+  });
+
+  el.viewerDateRow.addEventListener('click', function (e) {
+    var btn = e.target.closest('.viewer-chip');
+    if (!btn) return;
+    var val = btn.dataset.date;
+    state.viewerFilters.date = (state.viewerFilters.date === val) ? null : val;
+    renderViewerAll();
+  });
+
+  el.viewerBuiRow.addEventListener('click', function (e) {
+    var btn = e.target.closest('.viewer-chip');
+    if (!btn) return;
+    var val = btn.dataset.bui;
+    if (state.viewerFilters.bui.has(val)) state.viewerFilters.bui.delete(val);
+    else state.viewerFilters.bui.add(val);
+    renderViewerAll();
+  });
+
+  el.viewerKakosakiRow.addEventListener('click', function (e) {
+    var btn = e.target.closest('.viewer-chip');
+    if (!btn) return;
+    var val = btn.dataset.kakosaki;
+    if (state.viewerFilters.kakosaki.has(val)) state.viewerFilters.kakosaki.delete(val);
+    else state.viewerFilters.kakosaki.add(val);
+    renderViewerAll();
+  });
+
+  // ---------- 描画 ----------
+
+  function getFilteredViewerRows() {
+    var f = state.viewerFilters;
+    return state.viewerRows.filter(function (row) {
+      if (f.processed && row.processed !== f.processed) return false;
+      if (f.processed === 'done' && f.month && (!row.kakouDate || monthKey(row.kakouDate) !== f.month)) return false;
+      if (f.processed === 'done' && f.date && (!row.kakouDate || dateKey(row.kakouDate) !== f.date)) return false;
+      if (f.bui.size > 0 && !f.bui.has(row.bui)) return false;
+      if (f.kakosaki.size > 0 && !f.kakosaki.has(row.kakosaki)) return false;
+      return true;
+    });
+  }
+
+  function renderViewerFilters() {
+    if (state.viewerRows.length === 0) {
+      el.viewerFilterCard.style.display = 'none';
+      return;
+    }
+    el.viewerFilterCard.style.display = '';
+
+    var f = state.viewerFilters;
+
+    Array.prototype.forEach.call(el.viewerProcessedRow.children, function (btn) {
+      btn.classList.toggle('active', btn.dataset.processed === f.processed);
+    });
+
+    // 月ボタン: 「加工済」選択時のみ表示。実在する日付から重複なく月を抽出し昇順表示
+    if (f.processed === 'done') {
+      el.viewerMonthGroup.style.display = '';
+      var monthMap = {};
+      state.viewerRows.forEach(function (row) {
+        if (row.kakouDate) monthMap[monthKey(row.kakouDate)] = row.kakouDate;
+      });
+      var monthKeys = Object.keys(monthMap).sort();
+      el.viewerMonthRow.innerHTML = '';
+      monthKeys.forEach(function (mk) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'viewer-chip' + (f.month === mk ? ' active' : '');
+        btn.dataset.month = mk;
+        btn.textContent = monthLabel(monthMap[mk]);
+        el.viewerMonthRow.appendChild(btn);
+      });
+    } else {
+      el.viewerMonthGroup.style.display = 'none';
+    }
+
+    // 日付ボタン: 月が選択されている時のみ表示。選択中の月に属する日付だけを昇順表示
+    if (f.processed === 'done' && f.month) {
+      el.viewerDateGroup.style.display = '';
+      var dateMap = {};
+      state.viewerRows.forEach(function (row) {
+        if (row.kakouDate && monthKey(row.kakouDate) === f.month) {
+          dateMap[dateKey(row.kakouDate)] = row.kakouDate;
+        }
+      });
+      var dateKeys = Object.keys(dateMap).sort();
+      el.viewerDateRow.innerHTML = '';
+      dateKeys.forEach(function (dk) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'viewer-chip' + (f.date === dk ? ' active' : '');
+        btn.dataset.date = dk;
+        btn.textContent = dateLabel(dateMap[dk]);
+        el.viewerDateRow.appendChild(btn);
+      });
+    } else {
+      el.viewerDateGroup.style.display = 'none';
+    }
+
+    // 部位・加工先: データ内に実在する値だけからボタンを生成する(複数選択トグル)
+    var buiValues = [];
+    var buiSeen = {};
+    var kakosakiValues = [];
+    var kakosakiSeen = {};
+    state.viewerRows.forEach(function (row) {
+      if (row.bui && !buiSeen[row.bui]) { buiSeen[row.bui] = true; buiValues.push(row.bui); }
+      if (row.kakosaki && !kakosakiSeen[row.kakosaki]) { kakosakiSeen[row.kakosaki] = true; kakosakiValues.push(row.kakosaki); }
+    });
+    el.viewerBuiRow.innerHTML = '';
+    buiValues.forEach(function (v) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'viewer-chip' + (f.bui.has(v) ? ' active' : '');
+      btn.dataset.bui = v;
+      btn.textContent = v;
+      el.viewerBuiRow.appendChild(btn);
+    });
+    el.viewerKakosakiRow.innerHTML = '';
+    kakosakiValues.forEach(function (v) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'viewer-chip' + (f.kakosaki.has(v) ? ' active' : '');
+      btn.dataset.kakosaki = v;
+      btn.textContent = v;
+      el.viewerKakosakiRow.appendChild(btn);
+    });
+  }
+
+  function renderViewerTable() {
+    if (state.viewerRows.length === 0) {
+      el.viewerTableCard.style.display = 'none';
+      return;
+    }
+    el.viewerTableCard.style.display = '';
+    var rows = getFilteredViewerRows();
+    el.viewerTbody.innerHTML = '';
+    el.viewerEmptyHint.style.display = rows.length === 0 ? '' : 'none';
+
+    rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      var clickable = !!row.hyperlinkUrl;
+      tr.className = clickable ? 'viewer-row-clickable' : 'viewer-row-disabled';
+
+      [
+        row.bui, row.kakosaki, row.drawingNo, row.productMark, row.size, row.length, row.weight,
+        row.kakouDate ? dateDisplay(row.kakouDate) : '-'
+      ].forEach(function (text) {
+        var td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+
+      if (clickable) {
+        tr.addEventListener('click', function () {
+          var localPath = urlToLocalPath(row.hyperlinkUrl);
+          navigator.clipboard.writeText(localPath).then(function () {
+            showToast('絶対ファイルパスをコピーしました。エクスプローラーのアドレスバーに貼り付けて開いてください');
+          }).catch(function () {
+            showToast('クリップボードへのコピーに失敗しました');
+          });
+        });
+      }
+
+      el.viewerTbody.appendChild(tr);
+    });
+  }
+
+  function renderViewerAll() {
+    renderViewerFilters();
+    renderViewerTable();
+  }
+
+  // ---------- ⑤ 表示用Excelの単体インポート ----------
+
+  el.btnImportViewer.addEventListener('click', function () {
+    el.viewerFileInput.value = '';
+    el.viewerFileInput.click();
+  });
+
+  el.viewerFileInput.addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var loader = startLoading('表示用Excelを読込中...');
+    var reader = new FileReader();
+    reader.onload = function () {
+      var workbook = new ExcelJS.Workbook();
+      workbook.xlsx.load(reader.result).then(function () {
+        var ws = workbook.getWorksheet(TARGET_SHEET_NAME);
+        if (!ws) {
+          loader.finish();
+          showToast('エラー: シート「' + TARGET_SHEET_NAME + '」が見つかりません');
+          return;
+        }
+        el.viewerFileStatus.textContent = file.name;
+        state.viewerFilters = { processed: null, month: null, date: null, bui: new Set(), kakosaki: new Set() };
+        refreshViewerData(ws);
+        state.mode = 'view';
+        applyMode();
+        loader.finish();
+        showToast('表示用Excelを読み込みました');
+      }).catch(function (err) {
+        loader.finish();
+        showToast('読み込み失敗: ' + (err.message || err));
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  applyMode();
 })();
 </script>
 </body>
