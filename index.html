@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.4';
+  var APP_VERSION = '2026-07-30.5';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1274,6 +1274,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     renderFolderLog();
     renderSummary();
     renderPreviewTable();
+    // ③フォルダ照合・手動修正の結果を、④Excelダウンロード前でもビューアに
+    //即座に反映する（リンクは④で初めてセルへ書き込まれるが、ビューアは
+    // state.rowsの照合結果を直接参照するため④を待たずに済む）。
+    if (state.sourceWorksheet) refreshViewerData(state.sourceWorksheet);
   }
 
   function renderFolderLog() {
@@ -1549,12 +1553,32 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function buildViewerRows(ws) {
     var rows = [];
     var rowCount = ws.rowCount;
+
+    // リンク付与ツール側の照合結果(state.rows)は、④Excelダウンロードで
+    // 初めて実際のセルへハイパーリンクが書き込まれるまでは、そのセル自体には
+    // まだ反映されていない。③フォルダ照合や手動修正の直後でもビューアに
+    // 即座に反映できるよう、対象がstate.sourceWorksheet自身であれば
+    // 行番号をキーに照合結果を直接参照する（未マッチ・重複行は
+    // hyperlinkUrlを持たないため自然に対象外のまま）。
+    var linkStateByRow = null;
+    if (ws === state.sourceWorksheet && state.rows.length > 0) {
+      linkStateByRow = {};
+      state.rows.forEach(function (row) { linkStateByRow[row.rowNumber] = row; });
+    }
+
     for (var r = 2; r <= rowCount; r++) {
       var drawingCell = ws.getCell(r, COL_DRAWING);
       var drawingNo = cellRawText(drawingCell);
       if (drawingNo === '') continue;
       var kakouVal = ws.getCell(r, COL_KAKOU).value;
       var isDone = kakouVal instanceof Date;
+      var hyperlinkUrl = getCellHyperlink(drawingCell);
+      if (!hyperlinkUrl && linkStateByRow) {
+        var linkedRow = linkStateByRow[r];
+        if (linkedRow && linkedRow.status === '正常' && linkedRow.hyperlinkUrl) {
+          hyperlinkUrl = linkedRow.hyperlinkUrl;
+        }
+      }
       rows.push({
         rowNumber: r,
         bui: cellRawText(ws.getCell(r, COL_BUI)),
@@ -1566,7 +1590,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         weight: roundedWeightText(ws.getCell(r, COL_WEIGHT)),
         kakouDate: isDone ? kakouVal : null,
         processed: isDone ? 'done' : 'notdone',
-        hyperlinkUrl: getCellHyperlink(drawingCell)
+        hyperlinkUrl: hyperlinkUrl
       });
     }
     return rows;
