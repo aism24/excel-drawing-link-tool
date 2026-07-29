@@ -523,11 +523,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // 工事ごとの下位フォルダ部分はユーザーがこの後ろに追記する想定。
   var DEFAULT_BASE_PATH = '\\\\192.168.1.2\\share\\①進行中工事';
 
-  // フォルダ選択前にベースパスが未設定なら尋ねる。取得できなければfalseを返す。
+  // フォルダ選択のたびに、共通ルート〜工事名・図面種別フォルダまでのパスを
+  // 尋ねる（最後の実フォルダ名はこの後のフォルダ選択で自動的に追加されるため
+  // 含めない）。前回入力値（なければDEFAULT_BASE_PATH）を初期表示する。
+  // 取得できなければfalseを返す。
   function ensureBasePath() {
-    var current = el.basePathInput.value.trim();
-    if (current) return true;
-    var input = window.prompt('図面フォルダの絶対パスを入力してください（末尾に工事名・図面種別のフォルダまで追記してください）\n※この端末では次回以降、自動的に記憶されます。', DEFAULT_BASE_PATH);
+    var current = el.basePathInput.value.trim() || DEFAULT_BASE_PATH;
+    var input = window.prompt('図面フォルダの絶対パスを入力してください（末尾のフォルダ名はこの後のフォルダ選択で自動的に追加されます）\n※この端末では次回、この内容が初期表示されます。', current);
     if (!input || !input.trim()) {
       showToast('ベースパスが未入力のため、フォルダ選択を中止しました');
       return false;
@@ -665,8 +667,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   el.folderInput.addEventListener('change', function (e) {
     var files = Array.prototype.slice.call(e.target.files);
-    var basePath = el.basePathInput.value.trim();
-    if (!basePath) return;
+    var middlePath = el.basePathInput.value.trim();
+    if (!middlePath) return;
+    if (files.length === 0) return;
+
+    // 実際に選択したフォルダ自身の名前はwebkitRelativePathの先頭区画から
+    // 取得できるため、手入力させず自動的にmiddlePathの末尾へ追加する。
+    var leafFolderName = (files[0].webkitRelativePath || '').split('/')[0];
+    var basePath = leafFolderName
+      ? middlePath.replace(/[\\/]+$/, '') + '/' + leafFolderName
+      : middlePath;
 
     var directFiles = files.filter(function (f) {
       var rel = f.webkitRelativePath || '';
