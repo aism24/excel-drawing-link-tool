@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.7';
+  var APP_VERSION = '2026-07-30.8';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -108,13 +108,13 @@ body {
 
 header.masthead {
   position: sticky;
-  top: 0;
+  top: 12px; /* スクロール中も上部にタイル柄を少しだけ常時見せるための余白 */
   z-index: 100;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin: -32px -20px 20px;
+  margin: -20px -20px 20px; /* 上記のtopと揃え、初期表示時も同じ12px分だけタイル柄を残す */
   padding: 16px 20px 14px;
   background: var(--paper);
   border-bottom: 1px solid var(--border);
