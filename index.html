@@ -205,6 +205,8 @@ h1 {
 .btn-secondary { background: var(--accent); color: var(--paper); }
 .btn-success { background: var(--warn-fg); color: var(--paper); }
 .btn.btn-num { font-size: 20px; line-height: 1.3; }
+.btn-num-mark { font-size: 1em; }
+.btn-num-label { font-size: 0.75em; }
 
 .file-status { font-size: 12px; color: var(--ink-faint); margin-top: 8px; word-break: break-all; font-family: var(--font-mono); }
 
@@ -277,8 +279,33 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(22, 50, 74, 0.45);
+  display: none; align-items: center; justify-content: center; z-index: 1000;
+}
+.loading-overlay.show { display: flex; }
+.loading-box {
+  background: var(--paper); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 28px 32px; min-width: 260px; text-align: center;
+}
+.loading-label {
+  font-family: var(--font-ui); font-weight: 600; font-size: 14px;
+  color: var(--ink); margin-bottom: 14px;
+}
+.loading-bar-track {
+  width: 100%; height: 8px; border-radius: 4px; background: var(--accent-soft);
+  overflow: hidden;
+}
+.loading-bar-fill {
+  height: 100%; width: 0%; background: var(--accent-strong); border-radius: 4px;
+  transition: width 0.15s linear;
+}
+.loading-percent {
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); margin-top: 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .btn, .toast { transition: none; }
+  .btn, .toast, .loading-bar-fill { transition: none; }
 }
 </style>
 </head>
@@ -292,19 +319,19 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
    </div>
    <div class="masthead-actions">
     <div class="action-col">
-      <button id="btnImportSource" class="btn btn-num btn-pink">① マスタExcelをインポート</button>
+      <button id="btnImportSource" class="btn btn-num btn-pink"><span class="btn-num-mark">①</span> <span class="btn-num-label">マスタExcelをインポート</span></button>
       <div class="file-status" id="sourceFileStatus"></div>
     </div>
     <div class="action-col">
-      <button id="btnImportLinked" class="btn btn-num btn-yellow" disabled>② リンク済みExcelをインポート（任意）</button>
+      <button id="btnImportLinked" class="btn btn-num btn-yellow" disabled><span class="btn-num-mark">②</span> <span class="btn-num-label">リンク済みExcelをインポート（任意）</span></button>
       <div class="file-status" id="linkedFileStatus"></div>
     </div>
     <div class="action-col">
-      <button id="btnSelectFolder" class="btn btn-num btn-orange" disabled>③ 図面フォルダを選択</button>
+      <button id="btnSelectFolder" class="btn btn-num btn-orange" disabled><span class="btn-num-mark">③</span> <span class="btn-num-label">図面フォルダを選択</span></button>
       <div class="file-status" id="folderStatus"></div>
     </div>
     <div class="action-col">
-      <button id="btnExport" class="btn btn-num btn-green" disabled>④ ハイパーリンク付きExcelを保存</button>
+      <button id="btnExport" class="btn btn-num btn-green" disabled><span class="btn-num-mark">④</span> <span class="btn-num-label">ハイパーリンク付きExcelを保存</span></button>
     </div>
    </div>
   </header>
@@ -346,6 +373,16 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-box">
+      <div class="loading-label" id="loadingLabel">読込中...</div>
+      <div class="loading-bar-track">
+        <div class="loading-bar-fill" id="loadingBarFill"></div>
+      </div>
+      <div class="loading-percent" id="loadingPercent">0%</div>
+    </div>
+  </div>
 
   <input type="file" id="sourceFileInput" accept=".xlsx" style="display:none">
   <input type="file" id="linkedFileInput" accept=".xlsx" style="display:none">
@@ -439,7 +476,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     cntNA: document.getElementById('cntNA'),
     previewCard: document.getElementById('previewCard'),
     previewTbody: document.getElementById('previewTbody'),
-    toast: document.getElementById('toast')
+    toast: document.getElementById('toast'),
+    loadingOverlay: document.getElementById('loadingOverlay'),
+    loadingLabel: document.getElementById('loadingLabel'),
+    loadingBarFill: document.getElementById('loadingBarFill'),
+    loadingPercent: document.getElementById('loadingPercent')
   };
 
   function showToast(msg) {
@@ -449,6 +490,48 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     showToast._timer = setTimeout(function () {
       el.toast.classList.remove('show');
     }, 3200);
+  }
+
+  // ---------- 読込中ポップアップ（ダミープログレスバー） ----------
+  // 実際の処理進捗とは連動しないダミー表示。5秒かけて95%まで近づき、
+  // 実処理が完了した時点でfinish()を呼ぶと100%へジャンプして自動で閉じる。
+  var LOADING_DURATION_MS = 5000;
+  var LOADING_CAP_PERCENT = 95;
+
+  function startLoading(label) {
+    el.loadingLabel.textContent = label;
+    el.loadingBarFill.style.width = '0%';
+    el.loadingPercent.textContent = '0%';
+    el.loadingOverlay.classList.add('show');
+
+    var startTime = Date.now();
+    var rafId = null;
+    var finished = false;
+
+    function tick() {
+      if (finished) return;
+      var elapsed = Date.now() - startTime;
+      var pct = Math.min(LOADING_CAP_PERCENT, (elapsed / LOADING_DURATION_MS) * LOADING_CAP_PERCENT);
+      el.loadingBarFill.style.width = pct + '%';
+      el.loadingPercent.textContent = Math.floor(pct) + '%';
+      if (pct < LOADING_CAP_PERCENT) {
+        rafId = requestAnimationFrame(tick);
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+
+    return {
+      finish: function () {
+        if (finished) return;
+        finished = true;
+        if (rafId) cancelAnimationFrame(rafId);
+        el.loadingBarFill.style.width = '100%';
+        el.loadingPercent.textContent = '100%';
+        setTimeout(function () {
+          el.loadingOverlay.classList.remove('show');
+        }, 300);
+      }
+    };
   }
 
   function cellRawText(cell) {
@@ -565,13 +648,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   el.sourceFileInput.addEventListener('change', function (e) {
     var file = e.target.files[0];
     if (!file) return;
-    showToast('元データExcelを読み込み中...');
+    var loader = startLoading('マスタExcelを読込中...');
     var reader = new FileReader();
     reader.onload = function () {
       var workbook = new ExcelJS.Workbook();
       workbook.xlsx.load(reader.result).then(function () {
         var ws = workbook.getWorksheet(TARGET_SHEET_NAME);
         if (!ws) {
+          loader.finish();
           showToast('エラー: シート「' + TARGET_SHEET_NAME + '」が見つかりません');
           return;
         }
@@ -607,8 +691,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         el.btnSelectFolder.disabled = false;
         el.btnExport.disabled = false;
         renderAll();
+        loader.finish();
         showToast('元データExcelを読み込みました');
       }).catch(function (err) {
+        loader.finish();
         showToast('読み込み失敗: ' + (err.message || err));
       });
     };
@@ -625,13 +711,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   el.linkedFileInput.addEventListener('change', function (e) {
     var file = e.target.files[0];
     if (!file) return;
-    showToast('リンク済みExcelを読み込み中...');
+    var loader = startLoading('リンク済みExcelを読込中...');
     var reader = new FileReader();
     reader.onload = function () {
       var workbook = new ExcelJS.Workbook();
       workbook.xlsx.load(reader.result).then(function () {
         var ws = workbook.getWorksheet(TARGET_SHEET_NAME);
         if (!ws) {
+          loader.finish();
           showToast('エラー: リンク済みファイルにシート「' + TARGET_SHEET_NAME + '」が見つかりません');
           return;
         }
@@ -665,8 +752,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
         el.linkedFileStatus.textContent = file.name + '（' + carried + '件引き継ぎ）';
         renderAll();
+        loader.finish();
         showToast(carried + '件のハイパーリンクを引き継ぎました');
       }).catch(function (err) {
+        loader.finish();
         showToast('読み込み失敗: ' + (err.message || err));
       });
     };
@@ -688,6 +777,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var middlePath = el.basePathInput.value.trim();
     if (!middlePath) return;
     if (files.length === 0) return;
+
+    var loader = startLoading('図面フォルダを読込中...');
 
     // 実際に選択したフォルダ自身の名前はwebkitRelativePathの先頭区画から
     // 取得できる。入力済みパスが既にこのフォルダ名で終わっている場合
@@ -723,6 +814,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     runMatching();
     renderAll();
+    loader.finish();
     showToast(directFiles.length + '件の.tdfファイルを取得しました');
   });
 
@@ -887,7 +979,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   el.btnExport.addEventListener('click', function () {
     if (!state.sourceWorksheet) return;
-    showToast('Excelを作成中...');
+    var loader = startLoading('Excelを作成中...');
     var ws = state.sourceWorksheet;
     state.rows.forEach(function (row) {
       if (row.status !== '正常' || !row.hyperlinkUrl) return;
@@ -912,8 +1004,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      loader.finish();
       showToast('ダウンロードしました');
     }).catch(function (err) {
+      loader.finish();
       showToast('保存失敗: ' + (err.message || err));
     });
   });
