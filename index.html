@@ -423,7 +423,7 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   <div id="basePathOverlay" class="loading-overlay">
     <div class="basepath-box">
       <div class="basepath-label">図面フォルダの絶対パスを入力してください</div>
-      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した内容を貼り付けてください（前後の &quot; は自動的に取り除かれます）。<br>OKを押すと、続けて<span class="basepath-warn">フォルダ選択画面が開きます。実際のフォルダを指定してアクセスを許可してください。</span></div>
+      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した内容を貼り付けてください（前後の &quot; は自動的に取り除かれます）。次の画面で選択するフォルダの、1つ上の階層のパスを入力してください。<br>OKを押すと、続けて<span class="basepath-warn">フォルダ選択画面が開きます。実際のフォルダを指定してアクセスを許可してください。</span></div>
       <textarea id="basePathTextarea" class="basepath-textarea"></textarea>
       <div class="basepath-actions">
         <button type="button" id="basePathCancelBtn" class="btn">キャンセル</button>
@@ -841,39 +841,56 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     // 実際に選択したフォルダ自身の名前はwebkitRelativePathの先頭区画から
     // 取得できる。入力済みパスが既にこのフォルダ名で終わっている場合
     // （ユーザーが選択予定フォルダ名まで含めて入力済み）は二重追加を防ぐ。
-    var leafFolderName = (files[0].webkitRelativePath || '').split('/')[0];
+    var rootFolderName = (files[0].webkitRelativePath || '').split('/')[0];
     var trimmedMiddle = middlePath.replace(/[\\/]+$/, '');
     var normalizedMiddle = trimmedMiddle.replace(/\\/g, '/');
-    var alreadyEndsWithLeaf = leafFolderName && (
-      normalizedMiddle === leafFolderName ||
-      normalizedMiddle.slice(-(leafFolderName.length + 1)) === '/' + leafFolderName
+    var alreadyEndsWithRoot = rootFolderName && (
+      normalizedMiddle === rootFolderName ||
+      normalizedMiddle.slice(-(rootFolderName.length + 1)) === '/' + rootFolderName
     );
-    var basePath = (leafFolderName && !alreadyEndsWithLeaf)
-      ? trimmedMiddle + '/' + leafFolderName
+    var rootBasePath = (rootFolderName && !alreadyEndsWithRoot)
+      ? trimmedMiddle + '/' + rootFolderName
       : trimmedMiddle;
 
-    var directFiles = files.filter(function (f) {
-      var rel = f.webkitRelativePath || '';
-      return rel.split('/').length === 2;
-    }).filter(function (f) {
+    // 選択したフォルダの直下（従来通り）に加え、その1階層下のサブフォルダの
+    // 直下までを対象にする（複数階層フォルダの一括選択に対応）。
+    // 2階層以上深い場所（「旧」等の古いファイルを格納したフォルダ）は
+    // どれだけネストしていても巻き込まないよう除外する。
+    var accepted = [];
+    files.filter(function (f) {
       return /\.tdf$/i.test(f.name);
+    }).forEach(function (f) {
+      var parts = (f.webkitRelativePath || '').split('/');
+      var middleFolders = parts.slice(1, -1); // ルートとファイル名の間の階層
+      if (middleFolders.length > 1) return;
+      var basePath = middleFolders.length === 1
+        ? rootBasePath + '/' + middleFolders[0]
+        : rootBasePath;
+      accepted.push({ file: f, basePath: basePath });
     });
 
-    directFiles.forEach(function (f) {
+    accepted.forEach(function (a) {
       state.filePool.push({
-        fileName: f.name,
-        baseName: f.name.replace(/\.tdf$/i, ''),
-        basePath: basePath
+        fileName: a.file.name,
+        baseName: a.file.name.replace(/\.tdf$/i, ''),
+        basePath: a.basePath
       });
     });
 
-    state.folderLog.push({ basePath: basePath, count: directFiles.length });
-    el.folderStatus.textContent = '直下' + directFiles.length + '件取得（累計' + state.filePool.length + '件）';
+    var countByBasePath = {};
+    accepted.forEach(function (a) {
+      countByBasePath[a.basePath] = (countByBasePath[a.basePath] || 0) + 1;
+    });
+    Object.keys(countByBasePath).forEach(function (bp) {
+      state.folderLog.push({ basePath: bp, count: countByBasePath[bp] });
+    });
+
+    el.folderStatus.textContent = accepted.length + '件取得（累計' + state.filePool.length + '件）';
 
     runMatching();
     renderAll();
     loader.finish();
-    showToast(directFiles.length + '件の.tdfファイルを取得しました');
+    showToast(accepted.length + '件の.tdfファイルを取得しました');
   });
 
   function runMatching() {
