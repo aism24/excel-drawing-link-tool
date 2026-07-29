@@ -1029,12 +1029,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           placeholder.value = '';
           placeholder.textContent = '-- 選択してください --';
           select.appendChild(placeholder);
-          options.forEach(function (opt, idx) {
-            var o = document.createElement('option');
-            o.value = String(idx);
-            o.textContent = opt.fileName + '（' + opt.basePath + '）';
-            select.appendChild(o);
-          });
+          // 候補が数千行×数百件規模になると、全行分を表示時に一括生成する
+          // だけで数秒〜数十秒級の画面フリーズが発生するため、この行の
+          // ドロップダウンを実際に開こうとした瞬間（mousedown/focus）に
+          // 初めて<option>を生成する遅延生成にしている。
+          var optionsPopulated = false;
+          function populateOptions() {
+            if (optionsPopulated) return;
+            optionsPopulated = true;
+            options.forEach(function (opt, idx) {
+              var o = document.createElement('option');
+              o.value = String(idx);
+              o.textContent = opt.fileName + '（' + opt.basePath + '）';
+              select.appendChild(o);
+            });
+          }
+          select.addEventListener('mousedown', populateOptions);
+          select.addEventListener('focus', populateOptions);
           select.addEventListener('change', function () {
             if (select.value === '') return;
             applyManualFix(row, options[Number(select.value)]);
