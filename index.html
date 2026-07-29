@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-29.5';
+  var APP_VERSION = '2026-07-29.6';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1050,10 +1050,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   });
 
   function runMatching() {
+    // 完全一致だけは事前にMap化して判定をO(1)にする（部分一致は元々
+    // 完全一致が無い場合の稀なフォールバックなので、従来通り総当たりの
+    // ままにしている）。Mapキーにファイル名をそのまま使うため、
+    // 素のオブジェクトではなくMapを使い、"__proto__"等の特殊な名前の
+    // ファイルがあっても安全に動作するようにしている。
+    var exactMap = new Map();
+    state.filePool.forEach(function (f) {
+      if (!exactMap.has(f.baseName)) exactMap.set(f.baseName, []);
+      exactMap.get(f.baseName).push(f);
+    });
+
     state.rows.forEach(function (row) {
       if (row.status === '正常' || row.status === '対象外') return;
 
-      var exact = state.filePool.filter(function (f) { return f.baseName === row.drawingNo; });
+      var exact = exactMap.get(row.drawingNo) || [];
       var candidates;
       if (exact.length > 0) {
         candidates = exact;
