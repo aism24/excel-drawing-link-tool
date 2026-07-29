@@ -319,6 +319,14 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 .basepath-hint {
   font-size: 12px; color: var(--ink-faint); margin-bottom: 12px; line-height: 1.6;
 }
+.basepath-warn {
+  color: var(--bad-fg); font-weight: 700;
+  animation: basepath-blink 2s ease-in-out infinite;
+}
+@keyframes basepath-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
 .basepath-textarea {
   width: 100%; min-height: 140px; max-height: 40vh; resize: vertical;
   font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
@@ -330,6 +338,9 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
 .basepath-textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .basepath-actions {
   margin-top: 14px; display: flex; justify-content: flex-end; gap: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .basepath-warn { animation: none; }
 }
 </style>
 </head>
@@ -411,7 +422,7 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   <div id="basePathOverlay" class="loading-overlay">
     <div class="basepath-box">
       <div class="basepath-label">図面フォルダの絶対パスを入力してください</div>
-      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した内容を貼り付けてください（前後の &quot; は自動的に取り除かれます）。<br>OKを押すと、続けてフォルダ選択画面が開きます。上で入力したパスと同じフォルダをそこで選択し、アクセスを許可してください。</div>
+      <div class="basepath-hint">エクスプローラーで対象フォルダを右クリック→「パスのコピー」した内容を貼り付けてください（前後の &quot; は自動的に取り除かれます）。<br>OKを押すと、続けて<span class="basepath-warn">フォルダ選択画面が開きます。実際のフォルダを指定してアクセスを許可してください。</span></div>
       <textarea id="basePathTextarea" class="basepath-textarea"></textarea>
       <div class="basepath-actions">
         <button type="button" id="basePathCancelBtn" class="btn">キャンセル</button>
