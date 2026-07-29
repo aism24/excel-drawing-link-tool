@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.3';
+  var APP_VERSION = '2026-07-30.4';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -255,7 +255,12 @@ table.folder-log-table, table.preview-table {
 }
 .folder-log-table td:last-child, .folder-log-table th:last-child { font-variant-numeric: tabular-nums; }
 .folder-log-table td:first-child { font-family: var(--font-mono); }
+.folder-log-table th {
+  background: var(--paper-sunken);
+  position: sticky; top: 0;
+}
 .table-scroll { max-height: 480px; overflow: auto; border-radius: 8px; }
+.folder-log-scroll { max-height: 396px; } /* ヘッダー行+データ10行分の実測高さ */
 
 .badge-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .badge {
@@ -475,10 +480,12 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
   <div id="linkModeSection">
   <div class="card" id="folderLogCard" style="display:none;">
     <div class="guide-title">登録済みフォルダ一覧</div>
-    <table class="folder-log-table" id="folderLogTable">
-      <thead><tr><th>ベースパス</th><th>取得ファイル数</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    <div class="table-scroll folder-log-scroll">
+      <table class="folder-log-table" id="folderLogTable">
+        <thead><tr><th>ベースパス</th><th>取得ファイル数</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="card badge-row" id="summaryCard" style="display:none;">
