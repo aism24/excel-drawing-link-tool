@@ -4,6 +4,32 @@
 <meta charset="UTF-8">
 <title>マスタの図番にリンクをつけて実寸法師を開けるExcelをダウンロード</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+// ---------- 自動キャッシュ更新チェック ----------
+// GitHub Pages（https://）配信版限定。ページ自身のURLをキャッシュ無視で
+// 再取得し、埋め込みのAPP_VERSIONが変わっていれば1回だけ強制的に
+// キャッシュを無視した状態で再読み込みする。ローカルのfile://版は
+// ブラウザの仕様上キャッシュを制御できないため何もしない。
+// 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
+(function () {
+  var APP_VERSION = '2026-07-29.1';
+  if (location.protocol === 'file:') return;
+  try {
+    var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
+    fetch(location.pathname + '?cachebust=' + Date.now(), { cache: 'no-store' })
+      .then(function (res) { return res.text(); })
+      .then(function (html) {
+        var m = html.match(/APP_VERSION\s*=\s*'([^']+)'/);
+        var remoteVersion = m && m[1];
+        if (remoteVersion && remoteVersion !== APP_VERSION && reloadedFor !== remoteVersion) {
+          sessionStorage.setItem('appVersionReloadedFor', remoteVersion);
+          location.href = location.pathname + '?v=' + Date.now();
+        }
+      })
+      .catch(function () { /* オフライン等は無視 */ });
+  } catch (e) { /* 無視 */ }
+})();
+</script>
 <style>
 :root {
   --bg: #eef2f6;
