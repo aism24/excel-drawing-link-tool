@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-29.3';
+  var APP_VERSION = '2026-07-29.4';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -264,6 +264,13 @@ table.folder-log-table, table.preview-table {
   font-family: var(--font-ui); font-size: 12.5px; font-weight: 600;
   font-variant-numeric: tabular-nums;
   border: 1px solid transparent;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+.badge:hover { filter: brightness(0.97); }
+.badge:active { transform: scale(0.97); }
+.badge-active {
+  box-shadow: 0 0 0 2px var(--accent-strong) inset;
 }
 .badge-green { background: var(--good-bg); color: var(--good-fg); border-color: var(--good-line); }
 .badge-red { background: var(--bad-bg); color: var(--bad-fg); border-color: var(--bad-line); }
@@ -409,10 +416,10 @@ select.fix-select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
   </div>
 
   <div class="card badge-row" id="summaryCard" style="display:none;">
-    <span class="badge badge-green" id="cntNormal">正常 0</span>
-    <span class="badge badge-red" id="cntNotFound">未発見 0</span>
-    <span class="badge badge-yellow" id="cntDup">重複 0</span>
-    <span class="badge badge-gray" id="cntNA">対象外 0</span>
+    <button type="button" class="badge badge-green" id="cntNormal" data-status="正常">正常 0</button>
+    <button type="button" class="badge badge-red" id="cntNotFound" data-status="未発見">未発見 0</button>
+    <button type="button" class="badge badge-yellow" id="cntDup" data-status="重複">重複 0</button>
+    <button type="button" class="badge badge-gray" id="cntNA" data-status="対象外">対象外 0</button>
   </div>
 
   <div class="card" id="previewCard" style="display:none;">
@@ -526,7 +533,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     sourceFileName: '',
     rows: [],
     filePool: [],
-    folderLog: []
+    folderLog: [],
+    statusFilter: null // null=全件表示。サマリーバッジのクリックで該当ステータスに絞り込む
   };
 
   var el = {
@@ -573,7 +581,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ---------- 読込中ポップアップ（ダミープログレスバー） ----------
   // 実際の処理進捗とは連動しないダミー表示。5秒かけて95%まで近づき、
   // 実処理が完了した時点でfinish()を呼ぶと100%へジャンプして自動で閉じる。
-  var LOADING_DURATION_MS = 5000;
+  var LOADING_DURATION_MS = 10000;
   var LOADING_CAP_PERCENT = 95;
 
   function startLoading(label) {
@@ -1109,6 +1117,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
   }
 
+  var SUMMARY_BADGES = [el.cntNormal, el.cntNotFound, el.cntDup, el.cntNA];
+
   function renderSummary() {
     if (state.rows.length === 0) {
       el.summaryCard.style.display = 'none';
@@ -1121,7 +1131,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     el.cntNotFound.textContent = '未発見 ' + counts['未発見'];
     el.cntDup.textContent = '重複 ' + counts['重複'];
     el.cntNA.textContent = '対象外 ' + counts['対象外'];
+    SUMMARY_BADGES.forEach(function (btn) {
+      btn.classList.toggle('badge-active', btn.dataset.status === state.statusFilter);
+    });
   }
+
+  SUMMARY_BADGES.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.statusFilter = (state.statusFilter === btn.dataset.status) ? null : btn.dataset.status;
+      renderAll();
+    });
+  });
 
   var STATUS_CLASS = {
     '正常': { row: 'row-normal', badge: 'status-normal' },
@@ -1138,7 +1158,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     el.previewCard.style.display = '';
     el.previewTbody.innerHTML = '';
 
-    state.rows.forEach(function (row) {
+    var visibleRows = state.statusFilter
+      ? state.rows.filter(function (r) { return r.status === state.statusFilter; })
+      : state.rows;
+
+    visibleRows.forEach(function (row) {
       var tr = document.createElement('tr');
       tr.className = STATUS_CLASS[row.status].row;
 
