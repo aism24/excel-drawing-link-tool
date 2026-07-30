@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = 'DEMO-TEMP-2026-07-30';
+  var APP_VERSION = '2026-07-30.8';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1854,25 +1854,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   });
 
   applyMode();
-  // ================================================================
-  // ★デモ録画専用フック（本番未使用・一時ファイルのみ）
-  // GIF実演記録のため、ネイティブファイルダイアログを経由せず実データの
-  // 表示状態を再現する目的でstate/renderAll等を外部からも呼べるようにする。
-  // ================================================================
-  window.__demo = {
-    state: state,
-    renderAll: renderAll,
-    refreshViewerData: refreshViewerData,
-    applyMode: applyMode,
-    setSourceStatus: function (fileName, count) {
-      el.sourceFileStatus.textContent = fileName + '（' + count + '行）';
-      el.btnImportLinked.disabled = false;
-      el.btnSelectFolder.disabled = false;
-      el.btnExport.disabled = false;
-    }
-  };
 })();
-
 </script>
 </body>
 </html>
