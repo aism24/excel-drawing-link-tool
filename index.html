@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.12';
+  var APP_VERSION = '2026-07-30.13';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1192,25 +1192,39 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // 「まだ本物のフォルダに到達していない」と判断し、サブフォルダを再帰的に
   // 辿って探し続ける（マッチしなかった直下ファイル自体はどこにも採用され
   // ない）。サブフォルダも無ければそのブランチは何も採用せず終わる。
+  // ★一時診断ログ（[CFDEBUG]タグ）: フォルダ抽出漏れの原因調査用に追加。
+  // 動作は変更せず、フォルダを1つ訪問するたびに判定内容をコンソールへ出力する。
+  // 原因判明後は削除すること。
   async function collectTdfEntries(dirHandle, relativePrefix, entries) {
     var directFiles = [];
     var subDirs = [];
-    for await (var [name, handle] of dirHandle.entries()) {
-      if (handle.kind === 'file') {
-        if (/\.tdf$/i.test(name)) directFiles.push([name, handle]);
-      } else if (handle.kind === 'directory') {
-        subDirs.push([name, handle]);
+    try {
+      for await (var [name, handle] of dirHandle.entries()) {
+        if (handle.kind === 'file') {
+          if (/\.tdf$/i.test(name)) directFiles.push([name, handle]);
+        } else if (handle.kind === 'directory') {
+          subDirs.push([name, handle]);
+        }
       }
+    } catch (err) {
+      console.log('[CFDEBUG] entries()読み取り失敗:', relativePrefix, '/', err && (err.name + ': ' + err.message));
+      return;
     }
     var hasMatch = directFiles.some(function (df) {
       return fileMatchesAnyRow(df[0].replace(/\.tdf$/i, ''));
     });
+    console.log('[CFDEBUG]', relativePrefix,
+      '| 直下tdf=' + directFiles.length + '件(' + directFiles.map(function (d) { return d[0]; }).join(',') + ')',
+      '| サブフォルダ=' + subDirs.length + '件(' + subDirs.map(function (s) { return s[0]; }).join(',') + ')',
+      '| hasMatch=' + hasMatch);
     if (hasMatch) {
+      console.log('[CFDEBUG]  →採用してこのフォルダで打ち止め:', relativePrefix);
       for (var i = 0; i < directFiles.length; i++) {
         var file = await directFiles[i][1].getFile();
         entries.push({ file: file, relativePath: relativePrefix + '/' + directFiles[i][0] });
       }
     } else {
+      console.log('[CFDEBUG]  →マッチなし、サブフォルダへ潜る:', relativePrefix);
       for (var j = 0; j < subDirs.length; j++) {
         await collectTdfEntries(subDirs[j][1], relativePrefix + '/' + subDirs[j][0], entries);
       }
