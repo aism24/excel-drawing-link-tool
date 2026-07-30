@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.13';
+  var APP_VERSION = '2026-07-30.14';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1144,10 +1144,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       return false;
     }
 
+    // ★一時診断ログ（[CFDEBUG2]タグ）: フォルダ抽出漏れ調査用。原因判明後に削除すること。
+    console.log('[CFDEBUG2] byFolderの総数=' + Object.keys(byFolder).length);
+
     var accepted = [];
     Object.keys(byFolder).forEach(function (folderKey) {
-      if (!folderHasMatch(folderKey)) return; // マッチが1件も無いフォルダは不採用（下の階層を見る）
-      if (hasMatchingAncestor(folderKey)) return; // より浅い階層で既にマッチ済み＝例外フォルダ（「旧」等）を除外
+      var hm = folderHasMatch(folderKey);
+      var ha = hm ? hasMatchingAncestor(folderKey) : false;
+      console.log('[CFDEBUG2]', folderKey,
+        '| tdf件数=' + byFolder[folderKey].length,
+        '| folderHasMatch=' + hm,
+        '| hasMatchingAncestor=' + ha,
+        '| 採用=' + (hm && !ha));
+      if (!hm) return; // マッチが1件も無いフォルダは不採用（下の階層を見る）
+      if (ha) return; // より浅い階層で既にマッチ済み＝例外フォルダ（「旧」等）を除外
       var suffix = folderKey.split('/').slice(1).join('/'); // ルート自身の名前を除いた部分
       var basePath = suffix ? rootBasePath + '/' + suffix : rootBasePath;
       byFolder[folderKey].forEach(function (e) {
