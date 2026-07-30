@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.11';
+  var APP_VERSION = '2026-07-30.12';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -675,6 +675,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var COL_WEIGHT = 13;
   var COL_KAKOU = 24;
   var HYPERLINK_COLOR_ARGB = 'FF0563C1';
+  // ExcelJS(v4.4.0)が読み込み→書き出しで正しく再現できることを確認済みの
+  // 条件付き書式ルールタイプ（バンドル内CFRuleXform.renderのswitch文から抽出）。
+  // これ以外のタイプ（duplicateValues等）は書き出し時に中身が空になり、
+  // Excelの自動修復でハイパーリンクごと巻き添え破損するため、①インポート時に除去する。
+  var SAFE_CF_RULE_TYPES = ['expression', 'cellIs', 'top10', 'aboveAverage', 'dataBar', 'colorScale', 'iconSet', 'containsText', 'timePeriod'];
 
   var state = {
     sourceWorkbook: null,
@@ -810,6 +815,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return null;
   }
 
+  // ExcelJSが再現できない条件付き書式ルール（SAFE_CF_RULE_TYPES以外）を
+  // ワークシートから除去する。ルールが1件も残らなくなったエントリ自体も削除する。
+  // 戻り値: 除去したルールの件数。
+  function sanitizeConditionalFormattings(ws) {
+    var removedCount = 0;
+    var list = ws.conditionalFormattings;
+    if (!list || !list.length) return 0;
+    var kept = [];
+    for (var i = 0; i < list.length; i++) {
+      var entry = list[i];
+      var rules = entry.rules || [];
+      var safeRules = rules.filter(function (rule) {
+        return SAFE_CF_RULE_TYPES.indexOf(rule.type) !== -1;
+      });
+      removedCount += rules.length - safeRules.length;
+      if (safeRules.length > 0) {
+        entry.rules = safeRules;
+        kept.push(entry);
+      }
+    }
+    ws.conditionalFormattings = kept;
+    return removedCount;
+  }
+
   function buildFileUrl(basePath, fileName) {
     var normalized = (basePath || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
     var isUnc = /^\/\//.test(normalized);
@@ -921,6 +950,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           showToast('エラー: シート「' + TARGET_SHEET_NAME + '」が見つかりません');
           return;
         }
+        var removedCfCount = sanitizeConditionalFormattings(ws);
+
         state.sourceWorkbook = workbook;
         state.sourceWorksheet = ws;
         state.sourceFileName = file.name;
@@ -971,7 +1002,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         renderAll();
         refreshViewerData(ws);
         loader.finish();
-        showToast('元データExcelを読み込みました');
+        if (removedCfCount > 0) {
+          showToast('元データExcelを読み込みました（互換性のため非対応の条件付き書式ルールを' + removedCfCount + '件削除しました）');
+        } else {
+          showToast('元データExcelを読み込みました');
+        }
       }).catch(function (err) {
         loader.finish();
         showToast('読み込み失敗: ' + (err.message || err));
