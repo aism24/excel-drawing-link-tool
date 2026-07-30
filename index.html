@@ -1144,20 +1144,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       return false;
     }
 
-    // ★一時診断ログ（[CFDEBUG2]タグ）: フォルダ抽出漏れ調査用。原因判明後に削除すること。
-    console.log('[CFDEBUG2] byFolderの総数=' + Object.keys(byFolder).length);
-
     var accepted = [];
     Object.keys(byFolder).forEach(function (folderKey) {
-      var hm = folderHasMatch(folderKey);
-      var ha = hm ? hasMatchingAncestor(folderKey) : false;
-      console.log('[CFDEBUG2]', folderKey,
-        '| tdf件数=' + byFolder[folderKey].length,
-        '| folderHasMatch=' + hm,
-        '| hasMatchingAncestor=' + ha,
-        '| 採用=' + (hm && !ha));
-      if (!hm) return; // マッチが1件も無いフォルダは不採用（下の階層を見る）
-      if (ha) return; // より浅い階層で既にマッチ済み＝例外フォルダ（「旧」等）を除外
+      if (!folderHasMatch(folderKey)) return; // マッチが1件も無いフォルダは不採用（下の階層を見る）
+      if (hasMatchingAncestor(folderKey)) return; // より浅い階層で既にマッチ済み＝例外フォルダ（「旧」等）を除外
       var suffix = folderKey.split('/').slice(1).join('/'); // ルート自身の名前を除いた部分
       var basePath = suffix ? rootBasePath + '/' + suffix : rootBasePath;
       byFolder[folderKey].forEach(function (e) {
@@ -1202,39 +1192,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // 「まだ本物のフォルダに到達していない」と判断し、サブフォルダを再帰的に
   // 辿って探し続ける（マッチしなかった直下ファイル自体はどこにも採用され
   // ない）。サブフォルダも無ければそのブランチは何も採用せず終わる。
-  // ★一時診断ログ（[CFDEBUG]タグ）: フォルダ抽出漏れの原因調査用に追加。
-  // 動作は変更せず、フォルダを1つ訪問するたびに判定内容をコンソールへ出力する。
-  // 原因判明後は削除すること。
   async function collectTdfEntries(dirHandle, relativePrefix, entries) {
     var directFiles = [];
     var subDirs = [];
-    try {
-      for await (var [name, handle] of dirHandle.entries()) {
-        if (handle.kind === 'file') {
-          if (/\.tdf$/i.test(name)) directFiles.push([name, handle]);
-        } else if (handle.kind === 'directory') {
-          subDirs.push([name, handle]);
-        }
+    for await (var [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'file') {
+        if (/\.tdf$/i.test(name)) directFiles.push([name, handle]);
+      } else if (handle.kind === 'directory') {
+        subDirs.push([name, handle]);
       }
-    } catch (err) {
-      console.log('[CFDEBUG] entries()読み取り失敗:', relativePrefix, '/', err && (err.name + ': ' + err.message));
-      return;
     }
     var hasMatch = directFiles.some(function (df) {
       return fileMatchesAnyRow(df[0].replace(/\.tdf$/i, ''));
     });
-    console.log('[CFDEBUG]', relativePrefix,
-      '| 直下tdf=' + directFiles.length + '件(' + directFiles.map(function (d) { return d[0]; }).join(',') + ')',
-      '| サブフォルダ=' + subDirs.length + '件(' + subDirs.map(function (s) { return s[0]; }).join(',') + ')',
-      '| hasMatch=' + hasMatch);
     if (hasMatch) {
-      console.log('[CFDEBUG]  →採用してこのフォルダで打ち止め:', relativePrefix);
       for (var i = 0; i < directFiles.length; i++) {
         var file = await directFiles[i][1].getFile();
         entries.push({ file: file, relativePath: relativePrefix + '/' + directFiles[i][0] });
       }
     } else {
-      console.log('[CFDEBUG]  →マッチなし、サブフォルダへ潜る:', relativePrefix);
       for (var j = 0; j < subDirs.length; j++) {
         await collectTdfEntries(subDirs[j][1], relativePrefix + '/' + subDirs[j][0], entries);
       }
