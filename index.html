@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.14';
+  var APP_VERSION = '2026-07-30.15';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -1129,6 +1129,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     });
 
     function folderHasMatch(folderKey) {
+      // フォルダパス（祖先も含む）に「旧」を含む場合は、直下に一致ファイルが
+      // あっても常に不採用扱いにする（例: 別枝の「旧」フォルダに同名ファイルが
+      // あるケースを、祖先関係の有無に関わらず除外するため）。
+      if (folderKey.indexOf('旧') !== -1) return false;
       var files = byFolder[folderKey];
       if (!files) return false;
       return files.some(function (e) {
@@ -1159,7 +1163,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       state.filePool.push({
         fileName: a.file.name,
         baseName: a.file.name.replace(/\.tdf$/i, ''),
-        basePath: a.basePath
+        basePath: a.basePath,
+        lastModified: a.file.lastModified
       });
     });
 
@@ -1202,7 +1207,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         subDirs.push([name, handle]);
       }
     }
-    var hasMatch = directFiles.some(function (df) {
+    // フォルダパス（祖先も含む）に「旧」を含む場合は、直下に一致ファイルが
+    // あっても常に不採用扱いにする（webkitdirectory側のfolderHasMatchと同じ考え方）。
+    var hasMatch = relativePrefix.indexOf('旧') === -1 && directFiles.some(function (df) {
       return fileMatchesAnyRow(df[0].replace(/\.tdf$/i, ''));
     });
     if (hasMatch) {
@@ -1302,8 +1309,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         row.candidates = [];
         row.source = 'auto';
       } else if (candidates.length > 1) {
-        row.status = '重複';
-        row.candidates = candidates;
+        // 同名ファイルが複数フォルダに存在する場合、更新日時(lastModified)が
+        // 最も新しいものを自動採用する（ユーザー確定仕様。誤った方を採用する
+        // リスクより、日付の新しい方が正しい図面である可能性が高いことを優先）。
+        // 最新日時が2件以上で並ぶ本当に見分けがつかないケースのみ、従来通り
+        // 「重複」として手動選択に委ねる。
+        var newest = candidates.reduce(function (best, c) {
+          return (!best || c.lastModified > best.lastModified) ? c : best;
+        }, null);
+        var newestTieCount = candidates.filter(function (c) { return c.lastModified === newest.lastModified; }).length;
+        if (newestTieCount > 1) {
+          row.status = '重複';
+          row.candidates = candidates;
+        } else {
+          row.status = '正常';
+          row.matchedFileName = newest.fileName;
+          row.matchedBasePath = newest.basePath;
+          row.hyperlinkUrl = buildFileUrl(newest.basePath, newest.fileName);
+          row.candidates = [];
+          row.source = 'auto-newest';
+        }
       } else {
         row.status = '未発見';
         row.candidates = [];
