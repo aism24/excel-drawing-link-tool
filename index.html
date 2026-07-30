@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.17';
+  var APP_VERSION = '2026-07-30.18';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -607,6 +607,20 @@ table.viewer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
     </div>
   </div>
 
+  <div id="exportModeOverlay" class="loading-overlay">
+    <div class="basepath-box">
+      <div class="basepath-label">ダウンロード方式を選択してください</div>
+      <div class="basepath-hint">「建方日ベース」を選ぶと、2行目以降のA:AI全行が建方日・部位の順で並び替えられた状態でダウンロードされます。</div>
+      <div class="basepath-actions" style="justify-content:center; margin-top:18px;">
+        <button type="button" id="exportModeMasterBtn" class="btn btn-primary">① マスタベース（並び替えなし）</button>
+        <button type="button" id="exportModeErectionBtn" class="btn btn-secondary">② 建方日ベース（並び替えあり）</button>
+      </div>
+      <div class="basepath-actions">
+        <button type="button" id="exportModeCancelBtn" class="btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <input type="file" id="sourceFileInput" accept=".xlsx" style="display:none">
   <input type="file" id="linkedFileInput" accept=".xlsx" style="display:none">
   <input type="file" id="folderInput" webkitdirectory style="display:none">
@@ -739,6 +753,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     basePathTextarea: document.getElementById('basePathTextarea'),
     basePathOkBtn: document.getElementById('basePathOkBtn'),
     basePathCancelBtn: document.getElementById('basePathCancelBtn'),
+    exportModeOverlay: document.getElementById('exportModeOverlay'),
+    exportModeMasterBtn: document.getElementById('exportModeMasterBtn'),
+    exportModeErectionBtn: document.getElementById('exportModeErectionBtn'),
+    exportModeCancelBtn: document.getElementById('exportModeCancelBtn'),
     modeBtnLink: document.getElementById('modeBtnLink'),
     modeBtnView: document.getElementById('modeBtnView'),
     linkModeSection: document.getElementById('linkModeSection'),
@@ -974,6 +992,85 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return { updatedCount: updatedCount, duplicateCount: duplicateCount };
   }
 
+  // ---------- ④ダウンロード時の「建方日ベース」並び替え ----------
+
+  var BUI_SORT_ORDER = ['柱', '大梁', '小梁', '間柱']; // これ以外は「その他」として最後尾扱い
+
+  function buiSortRank(text) {
+    var idx = BUI_SORT_ORDER.indexOf(text);
+    return idx === -1 ? BUI_SORT_ORDER.length : idx;
+  }
+
+  // 建方日セルを「UTC真夜中のタイムスタンプ(ms)」に変換する。空欄/非日付はnull。
+  // Excelのシリアル値由来のDateはタイムゾーンの概念を持たないため、既存の
+  // ビューア機能同様、必ずUTCゲッターで年月日を取り出してから組み立てる。
+  function erectionDateTimestamp(cell) {
+    var d = cellDateValue(cell);
+    if (!d) return null;
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+
+  // 2行目以降のA:AI全行を「建方日ベース」で並び替えた新しい行順（元の行番号の配列）を返す。
+  // 優先順位: ①直近グループ(今日-10日以降)を古いグループ(11日以上前・空欄含む)より上に
+  //          ②グループ内は建方日昇順（空欄は最後尾）
+  //          ③建方日が同じ場合は部位順(柱>大梁>小梁>間柱>その他)
+  //          ④それでも同じ場合は元の行順を維持（安定ソート）
+  function computeErectionDateSortOrder(ws) {
+    var now = new Date();
+    var todayUtcMidnight = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    var thresholdMs = todayUtcMidnight - 10 * 24 * 60 * 60 * 1000;
+
+    var rowCount = ws.rowCount;
+    var items = [];
+    for (var r = 2; r <= rowCount; r++) {
+      var ts = erectionDateTimestamp(ws.getCell(r, COL_ERECTION_DATE));
+      var groupRank = (ts !== null && ts >= thresholdMs) ? 0 : 1; // 空欄は古いグループ扱い
+      var sortTs = ts === null ? Infinity : ts; // グループ内で空欄は最後尾
+      var buiText = cellRawText(ws.getCell(r, COL_BUI));
+      items.push({ rowNumber: r, groupRank: groupRank, sortTs: sortTs, buiRank: buiSortRank(buiText) });
+    }
+
+    items.sort(function (a, b) {
+      if (a.groupRank !== b.groupRank) return a.groupRank - b.groupRank;
+      if (a.sortTs !== b.sortTs) return a.sortTs - b.sortTs;
+      if (a.buiRank !== b.buiRank) return a.buiRank - b.buiRank;
+      return 0; // 元の行順を維持（Array.prototype.sortの安定性に依存）
+    });
+
+    return items.map(function (it) { return it.rowNumber; });
+  }
+
+  // ws（2行目以降・A:AI全列）を、computeErectionDateSortOrderが返す順序に
+  // 並び替える。値・書式(font/style)ともに丸ごと移動する。共有スタイル破壊
+  // バグの教訓により、書き込み前に必ずstyleをディープコピーする。
+  function reorderRowsByErectionDate(ws) {
+    var order = computeErectionDateSortOrder(ws);
+    var colCount = ws.columnCount;
+    var rowCount = ws.rowCount;
+
+    // 先に全行・全列のスナップショットを取ってから書き戻す（読み取りと書き込みを
+    // 混在させると、書き込み済みの行を後から読んでしまい上書き事故が起きるため）。
+    var snapshots = {};
+    for (var r = 2; r <= rowCount; r++) {
+      var rowSnapshot = [];
+      for (var c = 1; c <= colCount; c++) {
+        var cell = ws.getCell(r, c);
+        rowSnapshot.push({ value: cell.value, style: JSON.parse(JSON.stringify(cell.style || {})) });
+      }
+      snapshots[r] = rowSnapshot;
+    }
+
+    for (var p = 0; p < order.length; p++) {
+      var targetRowNumber = 2 + p;
+      var sourceSnapshot = snapshots[order[p]];
+      for (var ci = 0; ci < sourceSnapshot.length; ci++) {
+        var targetCell = ws.getCell(targetRowNumber, ci + 1);
+        targetCell.style = sourceSnapshot[ci].style;
+        targetCell.value = sourceSnapshot[ci].value;
+      }
+    }
+  }
+
   function buildFileUrl(basePath, fileName) {
     var normalized = (basePath || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
     var isUnc = /^\/\//.test(normalized);
@@ -1047,6 +1144,31 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       el.basePathOkBtn.addEventListener('click', onOk);
       el.basePathCancelBtn.addEventListener('click', onCancel);
       el.basePathTextarea.addEventListener('keydown', onKeydown);
+    });
+  }
+
+  // ④Excelダウンロード時にダウンロード方式を尋ねる。
+  // 'master'＝並び替えなし（従来通り）、'erection'＝建方日ベースで並び替え、
+  // ''＝キャンセル。
+  function askExportMode() {
+    return new Promise(function (resolve) {
+      el.exportModeOverlay.classList.add('show');
+
+      function cleanup() {
+        el.exportModeOverlay.classList.remove('show');
+        el.exportModeMasterBtn.removeEventListener('click', onMaster);
+        el.exportModeErectionBtn.removeEventListener('click', onErection);
+        el.exportModeCancelBtn.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKeydown);
+      }
+      function onMaster() { cleanup(); resolve('master'); }
+      function onErection() { cleanup(); resolve('erection'); }
+      function onCancel() { cleanup(); resolve(''); }
+      function onKeydown(e) { if (e.key === 'Escape') onCancel(); }
+      el.exportModeMasterBtn.addEventListener('click', onMaster);
+      el.exportModeErectionBtn.addEventListener('click', onErection);
+      el.exportModeCancelBtn.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKeydown);
     });
   }
 
@@ -1726,26 +1848,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   // ---------- Step4: 保存 ----------
 
-  el.btnExport.addEventListener('click', function () {
-    if (!state.sourceWorksheet) return;
-    var loader = startLoading('Excelを作成中...');
-    var ws = state.sourceWorksheet;
-    state.rows.forEach(function (row) {
-      if (row.status !== '正常' || !row.hyperlinkUrl) return;
-      var cell = ws.getCell(row.rowNumber, COL_DRAWING);
-      cell.style = JSON.parse(JSON.stringify(cell.style || {}));
-      var existingFont = cell.font || {};
-      cell.value = { text: row.drawingNo, hyperlink: row.hyperlinkUrl };
-      cell.font = Object.assign({}, existingFont, {
-        color: { argb: HYPERLINK_COLOR_ARGB },
-        bold: true,
-        underline: false
-      });
-    });
-
-    refreshViewerData(ws);
-
-    state.sourceWorkbook.xlsx.writeBuffer().then(function (buffer) {
+  // workbookをダウンロードとして確定する共通処理（マスタベース・建方日ベース共通）。
+  function downloadWorkbook(workbook, loader) {
+    return workbook.xlsx.writeBuffer().then(function (buffer) {
       var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
@@ -1760,6 +1865,50 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }).catch(function (err) {
       loader.finish();
       showToast('保存失敗: ' + (err.message || err));
+    });
+  }
+
+  el.btnExport.addEventListener('click', function () {
+    if (!state.sourceWorksheet) return;
+    askExportMode().then(function (mode) {
+      if (!mode) return; // キャンセル
+
+      var loader = startLoading('Excelを作成中...');
+      var ws = state.sourceWorksheet;
+      state.rows.forEach(function (row) {
+        if (row.status !== '正常' || !row.hyperlinkUrl) return;
+        var cell = ws.getCell(row.rowNumber, COL_DRAWING);
+        cell.style = JSON.parse(JSON.stringify(cell.style || {}));
+        var existingFont = cell.font || {};
+        cell.value = { text: row.drawingNo, hyperlink: row.hyperlinkUrl };
+        cell.font = Object.assign({}, existingFont, {
+          color: { argb: HYPERLINK_COLOR_ARGB },
+          bold: true,
+          underline: false
+        });
+      });
+
+      refreshViewerData(ws);
+
+      if (mode === 'master') {
+        downloadWorkbook(state.sourceWorkbook, loader);
+      } else {
+        // 建方日ベース: state.sourceWorkbook（アプリ内部の状態）は並び替えない。
+        // 一度書き出し→別インスタンスとして再読込したクローンに対してのみ
+        // 行の並び替えを行うことで、以後の③照合や再エクスポート等が
+        // 元の行番号を前提に動作し続けられるようにする。
+        state.sourceWorkbook.xlsx.writeBuffer().then(function (buffer) {
+          var cloneWorkbook = new ExcelJS.Workbook();
+          return cloneWorkbook.xlsx.load(buffer).then(function () {
+            var cloneWorksheet = cloneWorkbook.getWorksheet(TARGET_SHEET_NAME);
+            reorderRowsByErectionDate(cloneWorksheet);
+            return downloadWorkbook(cloneWorkbook, loader);
+          });
+        }).catch(function (err) {
+          loader.finish();
+          showToast('保存失敗: ' + (err.message || err));
+        });
+      }
     });
   });
 
