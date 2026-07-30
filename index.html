@@ -12,7 +12,7 @@
 // ブラウザの仕様上キャッシュを制御できないため何もしない。
 // 修正をpushするたびに、このAPP_VERSIONの値を更新すること。
 (function () {
-  var APP_VERSION = '2026-07-30.16';
+  var APP_VERSION = '2026-07-30.17';
   if (location.protocol === 'file:') return;
   try {
     var reloadedFor = sessionStorage.getItem('appVersionReloadedFor');
@@ -684,7 +684,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var SHIP_COL_BLOCK = 2; // B列=ブロック
   var SHIP_COL_DRAWING = 5; // E列=図番
   var SHIP_COL_PRODUCT_MARK = 6; // F列=製品マーク
-  var SHIP_COL_WEIGHT = 13; // M列=重量
+  var SHIP_COL_WEIGHT = 12; // L列=重量
   var SHIP_DATA_START_ROW = 4; // 4行目以降がデータ（1〜3行目は見出し等）
   var SHIPMENT_UPDATED_COLOR_ARGB = 'FF008000'; // 単独一致で書き換えたセル＝緑太字
   var SHIPMENT_DUPLICATE_COLOR_ARGB = 'FFFF0000'; // 出荷リスト内で重複していた場合＝赤文字
